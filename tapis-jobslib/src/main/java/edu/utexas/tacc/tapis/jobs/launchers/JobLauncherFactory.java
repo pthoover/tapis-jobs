@@ -107,7 +107,7 @@ public class JobLauncherFactory
     {
         // Get the scheduler's docker launcher. 
         JobLauncher launcher = switch (scheduler) {
-            case SLURM -> null;  // at least 1 case is required.
+            case KUBERNETES -> new KubernetesLauncher(jobCtx);
             
             default -> {
                 String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 
@@ -116,14 +116,6 @@ public class JobLauncherFactory
                 throw new JobException(msg);
             }
         };
-        
-        // Make sure we always return a non-null launcher.
-        if (launcher == null) {
-            String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 
-                                          scheduler + "(DOCKER)", 
-                                         "JobLauncherFactory");
-            throw new JobException(msg);
-        }
         
         return launcher;
     }

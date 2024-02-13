@@ -6,6 +6,7 @@ import edu.utexas.tacc.tapis.apps.client.gen.model.TapisApp;
 import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.model.enumerations.JobType;
 import edu.utexas.tacc.tapis.jobs.stagers.docker.DockerStager;
+import edu.utexas.tacc.tapis.jobs.stagers.docker.DockerKubernetesStager;
 import edu.utexas.tacc.tapis.jobs.stagers.singularity.SingularityRunSlurmStager;
 import edu.utexas.tacc.tapis.jobs.stagers.singularity.SingularityRunStager;
 import edu.utexas.tacc.tapis.jobs.stagers.singularity.SingularityStartStager;
@@ -24,8 +25,8 @@ public final class JobExecStageFactory
      * This method either returns the appropriate stager or throws an exception.
      *
      * Supported stagers:   FORK for runtimes: Docker, Singularity_Start, Singularity_Run, ZIP
-     *                      BATCH for runtimes: Singularity_Run, ZIP
-     * Unsupported stagers: BATCH for Docker, Singularity_Start
+     *                      BATCH for runtimes: Docker, Singularity_Run, ZIP
+     * Unsupported stagers: BATCH for Singularity_Start
      *
      * @param jobCtx job context
      * @return the stager designated for the current job type and environment
@@ -99,11 +100,19 @@ public final class JobExecStageFactory
                                                       SchedulerTypeEnum scheduler) 
      throws TapisException
     {
-        // Not yet supported
-        String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME",
-                                     scheduler + "(DOCKER)",
-                                     "JobExecStageFactory");
-        throw new JobException(msg);
+        // Get the scheduler's docker stager.
+        JobExecStager stager = switch (scheduler) {
+            case KUBERNETES -> new DockerKubernetesStager(jobCtx, scheduler);
+            
+            default -> {
+                String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 
+                                             scheduler + "(DOCKER)", 
+                                             "JobExecStageFactory");
+                throw new JobException(msg);
+            }
+        };
+        
+        return stager;     
     }
 
     /* ---------------------------------------------------------------------- */

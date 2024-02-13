@@ -13,6 +13,7 @@ import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.model.Job;
 import edu.utexas.tacc.tapis.jobs.model.submit.LogConfig;
 import edu.utexas.tacc.tapis.jobs.schedulers.JobScheduler;
+import edu.utexas.tacc.tapis.jobs.schedulers.KubernetesScheduler;
 import edu.utexas.tacc.tapis.jobs.schedulers.SlurmScheduler;
 import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionContext;
 import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionUtils;
@@ -84,6 +85,8 @@ public abstract class AbstractJobExecStager
             _jobScheduler = null;
         } else if (SchedulerTypeEnum.SLURM.equals(schedulerType)) {
             _jobScheduler = new SlurmScheduler(jobCtx);
+        } else if (SchedulerTypeEnum.KUBERNETES.equals(schedulerType)) {
+            _jobScheduler = new KubernetesScheduler(jobCtx);
         } else {
             String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", schedulerType,
                                          AbstractJobExecStager.class.getSimpleName());

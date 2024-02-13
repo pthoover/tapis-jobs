@@ -378,7 +378,8 @@ public final class JobExecutionContext
         
         // Detect the runtimes that don't use a separate environment variable file.
         if (execSys.getCanRunBatch() && 
-            execSys.getBatchScheduler() == SchedulerTypeEnum.SLURM)
+            (execSys.getBatchScheduler() == SchedulerTypeEnum.SLURM || 
+             execSys.getBatchScheduler() == SchedulerTypeEnum.KUBERNETES))
             return false;
         
         // All others use an environment variable file.

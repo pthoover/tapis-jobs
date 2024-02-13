@@ -102,7 +102,7 @@ public class JobCancelerFactory {
     {
         // Get the scheduler's docker canceler. 
     	JobCanceler canceler = switch (scheduler) {
-            case SLURM -> null; // not implemented
+            case KUBERNETES -> new KubernetesCanceler(jobCtx);
             
             default -> {
                 String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 

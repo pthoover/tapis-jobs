@@ -133,6 +133,8 @@ public class JobMonitorFactory
         JobMonitor monitor = switch (scheduler) {
             case SLURM -> null; // not implemented
             
+            case KUBERNETES -> new KubernetesMonitor(jobCtx, policy);
+            
             default -> {
                 String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 
                                              scheduler.name(), "JobMonitorFactory");
@@ -154,6 +156,8 @@ public class JobMonitorFactory
         // Get the scheduler's docker monitor. 
         JobMonitor monitor = switch (scheduler) {
             case SLURM -> new SlurmMonitor(jobCtx, policy);
+            
+            case KUBERNETES -> null; // not implemented
         
             default -> {
                 String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 

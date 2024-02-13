@@ -33,6 +33,7 @@ public final class JobExecutionUtils
     // Job wrapper script name.
     public static final String JOB_WRAPPER_SCRIPT        = "tapisjob.sh";
     public static final String JOB_ENV_FILE              = "tapisjob.env";
+    public static final String JOB_KUBE_MANIFEST_FILE    = "tapisjob.yaml";
     public static final String JOB_OUTPUT_REDIRECT_FILE  = "tapisjob.out";
     public static final String JOB_OUTPUT_EXITCODE_FILE  = "tapisjob.exitcode";
     public static final String JOB_ZIP_PID_FILE          = "tapisjob.pid";

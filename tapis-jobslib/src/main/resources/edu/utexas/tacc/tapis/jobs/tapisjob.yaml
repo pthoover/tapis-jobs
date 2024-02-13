@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name:
+spec:
+  template:
+    spec:
+      serviceAccountName:
+      restartPolicy: Never
+      volumes: []
+      containers:
+      - name:
+        image:
+        command: []
+        resources:
+          limits:
+            cpu:
+            memory:
+        volumeMounts: []
