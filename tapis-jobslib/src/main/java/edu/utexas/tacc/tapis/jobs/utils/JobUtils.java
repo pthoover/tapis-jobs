@@ -2,7 +2,6 @@ package edu.utexas.tacc.tapis.jobs.utils;
 
 import java.lang.reflect.Constructor;
 import java.util.List;
-import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
@@ -21,8 +20,6 @@ import edu.utexas.tacc.tapis.shared.exceptions.recoverable.TapisDBConnectionExce
 import edu.utexas.tacc.tapis.shared.i18n.MsgUtils;
 import edu.utexas.tacc.tapis.shared.security.ServiceClients;
 import edu.utexas.tacc.tapis.shared.utils.TapisUtils;
-
-import static edu.utexas.tacc.tapis.shared.utils.TapisUtils.conditionalQuote;
 
 public final class JobUtils 
 {
@@ -239,6 +236,7 @@ public final class JobUtils
     /*  generateEnvVarFileContentForZip                                             */
     /* ---------------------------------------------------------------------------- */
     /** Generate file content of env variables runtime type of ZIP
+     *  Include export and double quotes around value so whitespace is correctly handled
      */
     public static String generateEnvVarFileContentForZip(List<Pair<String, String>> env)
     {
@@ -248,14 +246,12 @@ public final class JobUtils
 
         // Write each assignment to the buffer.
         for (var pair : env) {
-            // Always use <key>= to start.
-            buf.append(pair.getKey()).append("=");
+            // Always use export <key>= to start.
+            buf.append("export ").append(pair.getKey()).append("=");
             // Only append the value if it is set.
-            // Note that this differs from docker runtime type support due to the way docker handles exports.
-            // Please see comments in DockerRunCmd.generateEnvVarFileContent()
             var value = pair.getValue();
             if (value != null && !value.isEmpty()) {
-                buf.append(pair.getValue());
+                buf.append(TapisUtils.conditionalQuote(value));
             }
             buf.append("\n");
         }

@@ -9,6 +9,43 @@ You may also reference live-docs based on the openapi specification here:
 https://tapis-project.github.io/live-docs
 
 -----------------------
+## 1.6.3 - 2024-??-??
+
+### New Features:
+1. Support use of spaces in environment variable values for ZIP runtime type.
+
+### Bug fixes:
+1. Allow spaces in execSystemExecDir paths when uploading application assets.
+2. Properly set the remoteSubmitted timestamp.
+
+-----------------------
+## 1.6.2 - 2024-05-19
+
+### New Features:
+1. Update maven repository reference.
+2. Define non-root image in Dockerfile.
+
+### Bug fixes:
+1. Avoid calling mkdir on S3 systems.
+
+-----------------------
+## 1.6.1 - 2024-04-11
+
+### New Features:
+1. Data Transfer Node (DTN) support.
+2. Introduced a condition code set when a job terminates to impart more information about job disposition.
+3. Introduced the envKey field in FileInputs and FileInputArrays to allow users to easily pass input file 
+   pathnames into their applications via environment variables.
+4. Support for application enable/disable at the application version level.  
+
+### Bug fixes:
+1. Fixed job output listing when limit/skip are used.
+2. Fixed unrecognized parameter problem on Slurm apptainer (singularity) jobs.
+3. Fixed LogConfig for Slurm/Singularity jobs.
+4. Fixed archiveFilter excludes processing.
+5. Fixed error when loading certain exception classes reflectively.
+
+-----------------------
 ## 1.6.0 - 2024-01-24
 
 ### New Features:

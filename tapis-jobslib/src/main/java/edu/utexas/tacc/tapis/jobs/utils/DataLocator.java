@@ -79,12 +79,12 @@ public class DataLocator {
      /* ---------------------------------------------------------------------- */
      public List<FileInfo> getJobOutputListings(JobOutputInfo jobOutputInfo, String tenant, 
                                                 String user, int limit, int skip,
-    		                                    String impersonationId, String sharedAppCtx) 
+    		                                    String impersonationId, String sharedAppCtx,
+    		                                    boolean recursiveFlag) 
       throws TapisImplException
      {
     	 List<FileInfo> outputList = null;
-    	 boolean recursiveFlag = true;
-    	 
+    	    	 
     	 // Get the File Service client 
          FilesClient filesClient = null;
 		
@@ -92,7 +92,7 @@ public class DataLocator {
 		        
          try {
         	 final String pattern = null;
-        	 outputList = filesClient.listFiles(jobOutputInfo.getSystemId(), pattern, jobOutputInfo.getSystemUrl(), 
+        	 outputList = filesClient.listFiles(jobOutputInfo.getSystemId(), jobOutputInfo.getSystemUrl(), pattern,  
         	                                    limit, skip, recursiveFlag, impersonationId, sharedAppCtx);
          } catch (TapisClientException e) {
             String msg = MsgUtils.getMsg("FILES_REMOTE_FILESLIST_ERROR", 

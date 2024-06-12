@@ -40,6 +40,7 @@ import edu.utexas.tacc.tapis.jobs.model.Job;
 import edu.utexas.tacc.tapis.jobs.model.JobEvent;
 import edu.utexas.tacc.tapis.jobs.model.dto.JobListDTO;
 import edu.utexas.tacc.tapis.jobs.model.dto.JobStatusDTO;
+import edu.utexas.tacc.tapis.jobs.model.enumerations.JobConditionCode;
 import edu.utexas.tacc.tapis.jobs.model.enumerations.JobRemoteOutcome;
 import edu.utexas.tacc.tapis.jobs.model.enumerations.JobStatusType;
 import edu.utexas.tacc.tapis.jobs.model.enumerations.JobType;
@@ -313,21 +314,23 @@ public final class JobsDao
                 jobListObject.setName(rs.getString(3));
                 jobListObject.setOwner(rs.getString(4));
                 jobListObject.setStatus(JobStatusType.valueOf(rs.getString(5)));
-                Timestamp ts = rs.getTimestamp(6);
+                var condition = rs.getString(6); // null in non-terminal states
+                if (condition != null) jobListObject.setCondition(JobConditionCode.valueOf(condition));
+                Timestamp ts = rs.getTimestamp(7);
                 if (ts != null) 
                     jobListObject.setCreated(ts.toInstant());
                 
-                ts = rs.getTimestamp(7);
+                ts = rs.getTimestamp(8);
                 if (ts != null) jobListObject.setEnded(ts.toInstant());
                 
-                ts = rs.getTimestamp(8);
+                ts = rs.getTimestamp(9);
                 if (ts != null) jobListObject.setLastUpdated(ts.toInstant());
                 
-                jobListObject.setAppId(rs.getString(9));
-                jobListObject.setAppVersion(rs.getString(10));
-                jobListObject.setExecSystemId(rs.getString(11));
-                jobListObject.setArchiveSystemId(rs.getString(11));
-                ts = rs.getTimestamp(13);
+                jobListObject.setAppId(rs.getString(10));
+                jobListObject.setAppVersion(rs.getString(11));
+                jobListObject.setExecSystemId(rs.getString(12));
+                jobListObject.setArchiveSystemId(rs.getString(13));
+                ts = rs.getTimestamp(14);
                 
                 if (ts != null) jobListObject.setRemoteStarted(ts.toInstant());
                 
@@ -1228,9 +1231,11 @@ public final class JobsDao
 	          jobStatus.setOwner(rs.getString(3));
 	          jobStatus.setTenant(rs.getString(4));
 	          jobStatus.setStatus(JobStatusType.valueOf(rs.getString(5)));
-	          jobStatus.setCreatedBy(rs.getString(6));
-	          jobStatus.setVisible(rs.getBoolean(7));
-	          jobStatus.setCreatedByTenant(rs.getString(8));
+	          var condition = rs.getString(6); // null when not in terminal state
+	          if (condition != null) jobStatus.setCondition(JobConditionCode.valueOf(condition));
+	          jobStatus.setCreatedBy(rs.getString(7));
+	          jobStatus.setVisible(rs.getBoolean(8));
+	          jobStatus.setCreatedByTenant(rs.getString(9));
 	          
 	          // Close the result and statement.
 	          rs.close();
@@ -1647,15 +1652,19 @@ public final class JobsDao
     /* ---------------------------------------------------------------------- */
     /** Set the status of the specified job after checking that the transition
      * from the current status to the new status is legal.  This method commits
-     * the update and returns the last update time. 
+     * the update and returns the last update time.
+     * 
+     * The job's condition code will be set once the job is retrieved.
      * 
      * @param uuid the job whose status is to change    
      * @param newStatus the job's new status
      * @param message the status message to be saved in the job record
+     * @param cond the condition code to be assigned to the job
      * @return the last update time saved in the job record
      * @throws JobException if the status could not be updated
      */
-    public Instant setStatus(String uuid, JobStatusType newStatus, String message)
+    public Instant setStatus(String uuid, JobStatusType newStatus, String message, 
+    		                 JobConditionCode cond)
      throws JobException
     {
         // Check input.
@@ -1668,6 +1677,7 @@ public final class JobsDao
         // Get the job and create its context object for event processing.
         // The new context object is referenced in the job, so it's not garbage.
         Job job = getJobByUUID(uuid);
+        job.setCondition(cond);
         Instant ts = setStatus(job, newStatus, message);
         
         return ts;
@@ -1686,7 +1696,11 @@ public final class JobsDao
      * 
      * Note that a new job event for this status change is persisted and can
      * trigger notifications to be sent.  Failures in event processing are not
-     * exposed as errors to callers, they are performed on a best-effort basis.   
+     * exposed as errors to callers, they are performed on a best-effort basis.
+     * 
+     * In cases where the job has failed it's expected that the job's condition
+     * code will already be set.  If not, the condition is set to an internal 
+     * error and logged in updateEnded().
      * 
      * @param uuid the job whose status is to change    
      * @param newStatus the job's new status
@@ -1797,6 +1811,7 @@ public final class JobsDao
             try {if (conn != null) conn.rollback();}
                 catch (Exception e1){_log.error(MsgUtils.getMsg("DB_FAILED_ROLLBACK"), e1);}
             
+            job.setCondition(JobConditionCode.JOB_DATABASE_ERROR);
             String msg = MsgUtils.getMsg("JOBS_UPDATE_TRANSFER_VALUE_ERROR", job.getUuid(), 
                                          job.getTenant(), job.getOwner(), 
                                          type.name(), value, e.getMessage());
@@ -1829,7 +1844,8 @@ public final class JobsDao
      * @param failMsg the message to write to the job record
      * @throws JobException 
      */
-    public void failJob(String caller, String jobUuid, String tenantId, String failMsg) 
+    public void failJob(String caller, String jobUuid, String tenantId, String failMsg,
+    		            JobConditionCode cond) 
      throws JobException
     {
         // Make sure we write something to the job record.
@@ -1837,7 +1853,7 @@ public final class JobsDao
             failMsg = MsgUtils.getMsg("JOBS_STATUS_FAILED_UNKNOWN_CAUSE");
         
         // Fail the job.
-        try {setStatus(jobUuid, JobStatusType.FAILED, failMsg);}
+        try {setStatus(jobUuid, JobStatusType.FAILED, failMsg, cond);}
             catch (Exception e) {
                 // The job will be left in a non-terminal state and probably 
                 // removed from any queue.  It's likely to become a zombie.
@@ -2501,6 +2517,10 @@ public final class JobsDao
      * chain to create and process job events.  This method only affects the 
      * jobs table and in-memory job object.
      * 
+     * In cases where the job has failed it's expected that the job's condition
+     * code will already be set.  If not, the condition is set to an internal 
+     * error and logged in updateEnded().
+     * 
      * @param uuid the job whose status is to change    
      * @param newStatus the job's new status
      * @param message the status message to be saved in the job record
@@ -2597,10 +2617,13 @@ public final class JobsDao
             }
             
             // Set the remote execution start time when the new status transitions to RUNNING
-            // or the job ended time if we have transitioned to a terminal state. The called
-            // methods also update the in-memory job object.
+            // or the job ended time if we have transitioned to a terminal state. Update the 
+            // remote submit time when transitioning from submitting status to the queued state.  
+            // The called methods also update the in-memory job object.
             if (newStatus == JobStatusType.RUNNING) updateRemoteStarted(conn, job, ts);
-            else if (newStatus.isTerminal()) updateEnded(conn, job, ts);
+            else if (newStatus.isTerminal()) updateEnded(conn, job, ts, newStatus);
+            else if (curStatus == JobStatusType.SUBMITTING_JOB && newStatus == JobStatusType.QUEUED) 
+            	updateRemoteSubmitted(conn, job, ts);
             
             // Write the event table and optionally send notifications (asynchronously).
             var eventMgr = JobEventManager.getInstance();
@@ -2651,6 +2674,39 @@ public final class JobsDao
     /* ---------------------------------------------------------------------- */
     /* updateRemoteStarted:                                                   */
     /* ---------------------------------------------------------------------- */
+    /** Set the remote submitted timestamp to be equal to the specified timestamp
+     * only if the remote submitted timestamp is null.  This method is really just 
+     * an extension of the setStatus() method separated for readability.  
+     * 
+     * Once set, the remote submitted timestamp is not updated by this method, so 
+     * calling it more than once for a job will not change the job record.
+     * 
+     * @param conn the connection with the in-progress transaction
+     * @param uuid the job uuid
+     * @param ts the remote execution start time
+     * @throws SQLException
+     */
+    private void updateRemoteSubmitted(Connection conn, Job job, Timestamp ts) 
+     throws SQLException
+    {
+        // Set the sql command.
+        String sql = SqlStatements.UPDATE_REMOTE_SUBMITTED;
+            
+        // Prepare the statement and fill in the placeholders.
+        PreparedStatement pstmt = conn.prepareStatement(sql);
+        pstmt.setTimestamp(1, ts);
+        pstmt.setString(2, job.getUuid());
+            
+        // Issue the call.
+        int rows = pstmt.executeUpdate();
+        
+        // Update the in-memory object.
+        job.setRemoteSubmitted(ts.toInstant());
+    }
+    
+    /* ---------------------------------------------------------------------- */
+    /* updateRemoteStarted:                                                   */
+    /* ---------------------------------------------------------------------- */
     /** Set the remote started timestamp to be equal to the specified timestamp
      * only if the remote started timestamp is null.  This method is really just 
      * an extension of the setStatus() method separated for readability.  
@@ -2694,18 +2750,39 @@ public final class JobsDao
      * @param conn the connection with the in-progress transaction
      * @param uuid the job uuid
      * @param ts the job termination time
+     * @param newStatus the job's new, terminal status
      * @throws SQLException
      */
-    private void updateEnded(Connection conn, Job job, Timestamp ts) 
+    private void updateEnded(Connection conn, Job job, Timestamp ts, JobStatusType newStatus) 
      throws SQLException
     {
+    	// Set the condition code if not set.  Only failures incidents set
+    	// the condition, so the other two terminal states will have a null
+    	// condition when processing gets here.
+        if (job.getCondition() == null)
+        	if (newStatus == JobStatusType.FINISHED) {
+        		job.setCondition(JobConditionCode.NORMAL_COMPLETION);
+        	}
+        	else if (newStatus == JobStatusType.CANCELLED) {
+        		job.setCondition(JobConditionCode.CANCELLED_BY_USER);
+        	}
+        	else {
+        		// Failed jobs should already have a condition code set. This
+        		// branch also acts as a catch all, which should never happen.
+        		job.setCondition(JobConditionCode.JOB_INTERNAL_ERROR);
+                String msg = MsgUtils.getMsg("JOBS_MISSING_CONDITION_CODE", 
+                		                     job.getUuid(), newStatus.name());
+                _log.error(msg);
+        	}
+        
         // Set the sql command.
         String sql = SqlStatements.UPDATE_JOB_ENDED;
             
         // Prepare the statement and fill in the placeholders.
         PreparedStatement pstmt = conn.prepareStatement(sql);
         pstmt.setTimestamp(1, ts);
-        pstmt.setString(2, job.getUuid());
+        pstmt.setString(2, job.getCondition().name());
+        pstmt.setString(3, job.getUuid());
             
         // Issue the call.
         int rows = pstmt.executeUpdate();
@@ -3181,6 +3258,11 @@ public final class JobsDao
 	        obj.setDtnInputCorrelationId(rs.getString(66));
 	        obj.setDtnOutputTransactionId(rs.getString(67));
 	        obj.setDtnOutputCorrelationId(rs.getString(68));
+	        
+	        // Condition code is null until job reaches a terminal state.
+	        String cond = rs.getString(69);
+	        if (cond != null)
+	           obj.setCondition(JobConditionCode.valueOf(cond));
 	    } 
 	    catch (Exception e) {
 	      String msg = MsgUtils.getMsg("DB_TYPE_CAST_ERROR", e.getMessage());
