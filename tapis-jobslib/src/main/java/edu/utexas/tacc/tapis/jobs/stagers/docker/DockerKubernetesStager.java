@@ -78,13 +78,15 @@ public class DockerKubernetesStager
         _cmdBuilder.append(" > /dev/null\n");
 
         // Add logic to determine the job identity
-        _cmdBuilder.append("id=$(kubectl get pods --selector=batch.kubernetes.io/job-name=");
-        _cmdBuilder.append(((KubernetesScheduler) _jobScheduler).getOptions().getJobName());
-        _cmdBuilder.append(" --output=jsonpath='{.items[*].metadata.name}')\n");
-        _cmdBuilder.append("if [ -z \"$id\" ]; then\n");
+        _cmdBuilder.append("active=$(kubectl get job ");
+        _cmdBuilder.append(_job.getUuid());
+        _cmdBuilder.append(" --output=jsonpath='{.status.active}')");
+        _cmdBuilder.append("if [ -z \"$active\" ]; then\n");
         _cmdBuilder.append("    exit 1\n");
         _cmdBuilder.append("fi\n");
-        _cmdBuilder.append("echo \"$id\"\n");
+        _cmdBuilder.append("echo \"");
+        _cmdBuilder.append(_job.getUuid());
+        _cmdBuilder.append("\"\n");
 
         return _cmdBuilder.toString();
     }

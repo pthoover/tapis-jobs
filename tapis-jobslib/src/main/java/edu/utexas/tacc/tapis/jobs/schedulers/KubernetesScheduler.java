@@ -145,7 +145,7 @@ public class KubernetesScheduler
             throw new JobException(err.getMessage());
         }
 
-        manifest.setValue("metadata.name", _kubeOptions.getJobName());
+        manifest.setValue("metadata.name", _jobCtx.getJob().getUuid());
         manifest.setValue("spec.template.spec.containers.name", _kubeOptions.getContainerName());
         manifest.setValue("spec.template.spec.containers.image", _kubeOptions.getImage());
         manifest.setValue("spec.template.spec.containers.resources.limits.cpu", _kubeOptions.getCpu());

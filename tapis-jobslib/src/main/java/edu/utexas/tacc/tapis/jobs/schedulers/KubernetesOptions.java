@@ -9,6 +9,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.model.Job;
 import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionContext;
+import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionUtils;
 import edu.utexas.tacc.tapis.shared.exceptions.TapisException;
 import edu.utexas.tacc.tapis.shared.i18n.MsgUtils;
 
@@ -285,19 +286,20 @@ public class KubernetesOptions
 
         setTapisLocalBindMounts(jobCtx, job);
 
-        setContainerName(job.getUuid());
+        String containerImage = jobCtx.getApp().getContainerImage();
+        String[] parts = containerImage.split("/");
+        String imageName = parts[parts.length - 1].split(":")[0];
 
-        setImage(jobCtx.getApp().getContainerImage());
+        setContainerName(imageName + "-container");
+
+        setImage(containerImage);
 
         setCpu(Integer.toString(job.getCoresPerNode()));
 
         setMemory(Integer.toString(job.getMemoryMB()));
 
-        if (StringUtils.isBlank(getJobName())) {
-            String[] parts = getImage().split("/");
-
-            setJobName(parts[parts.length - 1]);
-        }
+        if (StringUtils.isBlank(getJobName()))
+            setJobName(JobExecutionUtils.JOB_WRAPPER_SCRIPT);
     }
 
     /*
