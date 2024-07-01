@@ -133,9 +133,9 @@ public class KubernetesScheduler
     /**
      *
      * @return
-     * @throws JobException
+     * @throws TapisException
      */
-    public String getManifest() throws JobException
+    public String getManifest() throws TapisException
     {
         YamlDocument manifest;
 
@@ -147,6 +147,7 @@ public class KubernetesScheduler
         }
 
         manifest.setValue("metadata.name", _jobCtx.getJob().getUuid());
+        manifest.setValue("spec.template.spec.serviceAccountName", _jobCtx.getExecutionSystem().getEffectiveUserId());
         manifest.setValue("spec.template.spec.containers.name", _kubeOptions.getContainerName());
         manifest.setValue("spec.template.spec.containers.image", _kubeOptions.getImage());
         manifest.setValue("spec.template.spec.containers.resources.limits.cpu", _kubeOptions.getCpu());
