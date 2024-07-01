@@ -49,6 +49,7 @@ public class KubernetesScheduler
         try {
             _skipList.add(Pattern.compile("apiVersion"));
             _skipList.add(Pattern.compile("kind"));
+            _skipList.add(Pattern.compile("spec\\.schedule"));
         }
         catch (Exception err) {
             _log.error(err.getMessage(), err);
