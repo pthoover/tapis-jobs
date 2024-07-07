@@ -18,10 +18,8 @@ import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.model.Job;
 import edu.utexas.tacc.tapis.jobs.model.submit.JobArgSpec;
 import edu.utexas.tacc.tapis.jobs.model.submit.JobParameterSet;
-import edu.utexas.tacc.tapis.jobs.stagers.docker.DockerKubernetesCmd;
 import edu.utexas.tacc.tapis.jobs.utils.YamlDocument;
 import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionContext;
-import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionUtils;
 import edu.utexas.tacc.tapis.shared.exceptions.TapisException;
 import edu.utexas.tacc.tapis.shared.exceptions.runtime.TapisRuntimeException;
 import edu.utexas.tacc.tapis.shared.utils.TapisUtils;
@@ -39,7 +37,7 @@ public class KubernetesScheduler
 
     private static final Logger _log = LoggerFactory.getLogger(KubernetesScheduler.class);
     private static final Pattern _paramPattern = Pattern.compile("\\s*([^=\\s]+)\\s*=\\s*(\\S*)\\s*");
-    private static final String _resourceFile = "edu/utexas/tacc/tapis/jobs/" + JobExecutionUtils.JOB_KUBE_MANIFEST_FILE;
+    private static final String _resourceFile = "edu/utexas/tacc/tapis/jobs/kubernetes/manifest.yaml";
     private static final List<Pattern> _skipList = new ArrayList<Pattern>();
     private final JobExecutionContext _jobCtx;
     private final KubernetesOptions _kubeOptions;
@@ -139,7 +137,7 @@ public class KubernetesScheduler
     {
         YamlDocument manifest;
 
-        try (InputStream inStream = DockerKubernetesCmd.class.getClassLoader().getResourceAsStream(_resourceFile)) {
+        try (InputStream inStream = KubernetesScheduler.class.getClassLoader().getResourceAsStream(_resourceFile)) {
             manifest = new YamlDocument(inStream);
         }
         catch (IOException err) {

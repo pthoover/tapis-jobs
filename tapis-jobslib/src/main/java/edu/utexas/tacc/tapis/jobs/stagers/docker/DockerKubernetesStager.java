@@ -1,5 +1,11 @@
 package edu.utexas.tacc.tapis.jobs.stagers.docker;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+
+import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.schedulers.KubernetesScheduler;
 import edu.utexas.tacc.tapis.jobs.stagers.AbstractJobExecStager;
 import edu.utexas.tacc.tapis.jobs.stagers.JobExecCmd;
@@ -7,7 +13,6 @@ import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionContext;
 import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionUtils;
 import edu.utexas.tacc.tapis.jobs.worker.execjob.JobFileManager;
 import edu.utexas.tacc.tapis.shared.exceptions.TapisException;
-import edu.utexas.tacc.tapis.shared.exceptions.runtime.TapisRuntimeException;
 import edu.utexas.tacc.tapis.systems.client.gen.model.SchedulerTypeEnum;
 
 
@@ -21,7 +26,7 @@ public class DockerKubernetesStager
     // data fields
 
 
-    private final DockerKubernetesCmd _kubeCmd;
+    private static final String _resourceFile = "edu/utexas/tacc/tapis/jobs/kubernetes/wrapper.sh";
 
 
     // constructors
@@ -36,8 +41,6 @@ public class DockerKubernetesStager
     public DockerKubernetesStager(JobExecutionContext jobCtx, SchedulerTypeEnum schedulerType) throws TapisException
     {
         super(jobCtx, schedulerType);
-
-        _kubeCmd = new DockerKubernetesCmd();
     }
 
 
@@ -73,20 +76,24 @@ public class DockerKubernetesStager
         // Add zero or more module load commands.
         _cmdBuilder.append(_jobScheduler.getModuleLoadCalls());
 
-        // Add the actual Kubernetes command.
-        _cmdBuilder.append(_kubeCmd.generateExecCmd(_job));
-        _cmdBuilder.append(" > /dev/null\n");
+        try (InputStream inStream = new BufferedInputStream(DockerKubernetesStager.class.getClassLoader().getResourceAsStream(_resourceFile))) {
+            int bytesRead;
+            byte[] readBuffer = new byte[8192];
+            ByteArrayOutputStream result = new ByteArrayOutputStream();
 
-        // Add logic to determine the job identity
-        _cmdBuilder.append("active=$(kubectl get job ");
-        _cmdBuilder.append(_job.getUuid());
-        _cmdBuilder.append(" --output=jsonpath='{.status.active}')");
-        _cmdBuilder.append("if [ -z \"$active\" ]; then\n");
-        _cmdBuilder.append("    exit 1\n");
-        _cmdBuilder.append("fi\n");
-        _cmdBuilder.append("echo \"");
-        _cmdBuilder.append(_job.getUuid());
-        _cmdBuilder.append("\"\n");
+            while ((bytesRead = inStream.read(readBuffer, 0, readBuffer.length)) > -1)
+                result.write(readBuffer, 0, bytesRead);
+
+            String body = result.toString();
+
+            body = body.replace("${MANIFEST}", JobExecutionUtils.JOB_KUBE_MANIFEST_FILE);
+            body = body.replace("${JOBID}", _job.getUuid());
+
+            _cmdBuilder.append(body);
+        }
+        catch (IOException err) {
+            throw new JobException(err.getMessage());
+        }
 
         return _cmdBuilder.toString();
     }
@@ -94,12 +101,12 @@ public class DockerKubernetesStager
     @Override
     public String generateEnvVarFileContent() throws TapisException
     {
-        throw new TapisRuntimeException("Unimplemented method");
+        return null;
     }
 
     @Override
     public JobExecCmd createJobExecCmd() throws TapisException
     {
-        return new DockerKubernetesCmd();
+        return null;
     }
 }
