@@ -75,7 +75,7 @@ case "$action" in
         phase=$(kubectl get pod $pod --output=jsonpath='{.status.phase}')
 
         if [[ $phase != "Pending" ]]; then
-          $phase="Running"
+          phase="Running"
 
           break;
         fi
