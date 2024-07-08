@@ -4,6 +4,9 @@ metadata:
   name:
 spec:
   template:
+    metadata:
+      labels:
+        app:
     spec:
       serviceAccountName:
       restartPolicy: Never

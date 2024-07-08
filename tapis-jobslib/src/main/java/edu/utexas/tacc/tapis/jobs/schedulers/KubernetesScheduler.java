@@ -145,6 +145,7 @@ public class KubernetesScheduler
         }
 
         manifest.setValue("metadata.name", _jobCtx.getJob().getUuid());
+        manifest.setValue("spec.template.metadata.labels.app", _jobCtx.getApp().getId());
         manifest.setValue("spec.template.spec.serviceAccountName", _jobCtx.getExecutionSystem().getEffectiveUserId());
         manifest.setValue("spec.template.spec.containers.name", _kubeOptions.getContainerName());
         manifest.setValue("spec.template.spec.containers.image", _kubeOptions.getImage());
