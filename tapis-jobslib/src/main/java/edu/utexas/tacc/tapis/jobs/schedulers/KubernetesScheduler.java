@@ -154,6 +154,8 @@ public class KubernetesScheduler
 
         setContainerArgs(manifest);
 
+        setAppArgs(manifest);
+
         if (!_kubeOptions.getEnv().isEmpty())
             setEnvVariables(manifest);
 
@@ -209,6 +211,19 @@ public class KubernetesScheduler
                     manifest.setValue(key, value);
             }
         }
+    }
+
+    /*
+     *
+     */
+    private void setAppArgs(YamlDocument manifest) throws JobException
+    {
+        Job job = _jobCtx.getJob();
+        JobParameterSet parmSet = job.getParameterSetModel();
+        List<JobArgSpec> args = parmSet.getAppArgs();
+
+        for (JobArgSpec arg : args)
+            manifest.appendValue("spec.template.spec.containers.args", arg.getArg());
     }
 
     /*
