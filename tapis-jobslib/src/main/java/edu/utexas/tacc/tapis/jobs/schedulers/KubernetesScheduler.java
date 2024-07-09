@@ -150,7 +150,7 @@ public class KubernetesScheduler
         manifest.setValue("spec.template.spec.containers.name", _kubeOptions.getContainerName());
         manifest.setValue("spec.template.spec.containers.image", _kubeOptions.getImage());
         manifest.setValue("spec.template.spec.containers.resources.limits.cpu", _kubeOptions.getCpu());
-        manifest.setValue("spec.template.spec.containers.resources.limits.memory", _kubeOptions.getMemory() + "Mi");
+        manifest.setValue("spec.template.spec.containers.resources.limits.memory", _kubeOptions.getMemory() + "M");
 
         setContainerArgs(manifest);
 
