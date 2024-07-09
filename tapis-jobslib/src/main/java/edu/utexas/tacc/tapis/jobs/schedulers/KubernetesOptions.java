@@ -290,7 +290,10 @@ public class KubernetesOptions
         String[] parts = containerImage.split("/");
         String imageName = parts[parts.length - 1].split(":")[0];
 
-        imageName = imageName.toLowerCase().replaceAll("[^a-z0-9\\-]", "").substring(0, 52);
+        imageName = imageName.toLowerCase().replaceAll("[^a-z0-9\\-]", "");
+
+        if (imageName.length() > 53)
+            imageName = imageName.substring(0, 52);
 
         setContainerName(imageName + "-container");
 
