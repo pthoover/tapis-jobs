@@ -92,6 +92,7 @@ public class KubernetesOptions
     // data fields
 
 
+    private static final int MAX_LABEL_LENGTH = 53;
     private String _containerName;
     private String _cpu;
     private List<Pair<String,String>> _env;
@@ -292,8 +293,8 @@ public class KubernetesOptions
 
         imageName = imageName.toLowerCase().replaceAll("[^a-z0-9\\-]", "");
 
-        if (imageName.length() > 53)
-            imageName = imageName.substring(0, 52);
+        if (imageName.length() > MAX_LABEL_LENGTH)
+            imageName = imageName.substring(0, MAX_LABEL_LENGTH);
 
         setContainerName(imageName + "-container");
 
