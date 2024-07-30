@@ -85,8 +85,11 @@ public class DockerKubernetesStager
                 result.write(readBuffer, 0, bytesRead);
 
             String body = result.toString();
+            String kubeArgs = ((KubernetesScheduler) _jobScheduler).getArgList();
 
-            body = body.replace("${MANIFEST}", JobExecutionUtils.JOB_KUBE_MANIFEST_FILE);
+            kubeArgs += "-f " + JobExecutionUtils.JOB_KUBE_MANIFEST_FILE;
+
+            body = body.replace("${KUBEARGS}", kubeArgs);
             body = body.replace("${JOBID}", _job.getUuid());
 
             _cmdBuilder.append(body);

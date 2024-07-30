@@ -2,9 +2,12 @@ package edu.utexas.tacc.tapis.jobs.schedulers;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.model.Job;
@@ -93,14 +96,27 @@ public class KubernetesOptions
 
 
     private static final int MAX_LABEL_LENGTH = 53;
+    private static final Logger _log = LoggerFactory.getLogger(KubernetesOptions.class);
+    private static final List<Pattern> _skipList = new ArrayList<Pattern>();
     private String _containerName;
     private String _cpu;
     private List<Pair<String,String>> _env;
     private String _image;
     private String _jobName;
+    private List<String> _kubeArgs;
     private String _memory;
     private List<Mount> _mounts;
     private String _tapisProfile;
+
+
+    static {
+        try {
+            _skipList.add(Pattern.compile("-f|--filename"));
+        }
+        catch (Exception err) {
+            _log.error(err.getMessage(), err);
+        }
+    }
 
 
     // constructors
@@ -210,6 +226,27 @@ public class KubernetesOptions
     public void setJobName(String name)
     {
         _jobName = name;
+    }
+
+    /**
+     *
+     * @return
+     */
+    public List<String> getKubeArgs()
+    {
+        if (_kubeArgs == null)
+        _kubeArgs = new ArrayList<String>();
+
+        return _kubeArgs;
+    }
+
+    /**
+     *
+     * @param args
+     */
+    public void setKubeArgs(List<String> args)
+    {
+        _kubeArgs = args;
     }
 
     /**
@@ -341,14 +378,15 @@ public class KubernetesOptions
             }
 
             // Save the parsed value.
-            assignCmd(option, value);
+            if (!assignCmd(option, value) && !skipOption(option))
+                getKubeArgs().add(opt.getArg());
         }
     }
 
     /*
      *
      */
-    private void assignCmd(String option, String value) throws JobException
+    private boolean assignCmd(String option, String value)
     {
         switch (option) {
             case "--job-name":
@@ -361,10 +399,23 @@ public class KubernetesOptions
                 break;
 
             default:
-                String msg = MsgUtils.getMsg("JOBS_SCHEDULER_UNSUPPORTED_ARG", "kubernetes", option);
-
-                throw new JobException(msg);
+                return false;
         }
+
+        return true;
+    }
+
+    /*
+     *
+     */
+    private boolean skipOption(String name)
+    {
+        for (Pattern pattern : _skipList) {
+            if (pattern.matcher(name).matches())
+                return true;
+        }
+
+        return false;
     }
 
     /*

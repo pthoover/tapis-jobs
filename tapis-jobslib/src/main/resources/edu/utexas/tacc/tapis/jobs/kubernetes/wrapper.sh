@@ -31,12 +31,15 @@ fi
 
 case "$action" in
   launch)
-    kubectl apply -f ${MANIFEST} > /dev/null
-
+    output=$((kubectl apply ${KUBEARGS}) 2>&1)
     active=$(kubectl get job ${JOBID} --output=jsonpath='{.status.active}')
 
     if [[ -z $active ]]; then
+      echo "{\"output\":\"$output\",\"events\":\""
+
       get_events ${JOBID}
+
+      echo "\"}"
 
       exit 1
     fi

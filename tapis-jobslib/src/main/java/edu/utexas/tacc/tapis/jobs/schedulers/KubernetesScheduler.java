@@ -169,9 +169,16 @@ public class KubernetesScheduler
      *
      * @return
      */
-    public KubernetesOptions getOptions()
+    public String getArgList()
     {
-        return _kubeOptions;
+        StringBuilder argBuilder = new StringBuilder();
+
+        for (String arg : _kubeOptions.getKubeArgs()) {
+            argBuilder.append(arg);
+            argBuilder.append(' ');
+        }
+
+        return argBuilder.toString();
     }
 
 
