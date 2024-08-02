@@ -36,7 +36,7 @@ public class KubernetesScheduler
 
 
     private static final Logger _log = LoggerFactory.getLogger(KubernetesScheduler.class);
-    private static final Pattern _paramPattern = Pattern.compile("\\s*([^=\\s]+)\\s*=\\s*(\\S.*)");
+    private static final Pattern _paramPattern = Pattern.compile("\\s*([^\\+=\\s]+)\\s*(\\+?=)\\s*(\\S.*)");
     private static final String _resourceFile = "edu/utexas/tacc/tapis/jobs/kubernetes/manifest.yaml";
     private static final List<Pattern> _skipList = new ArrayList<Pattern>();
     private final JobExecutionContext _jobCtx;
@@ -212,10 +212,15 @@ public class KubernetesScheduler
 
             if (match.matches()) {
                 String key = match.group(1);
-                String value = match.group(2);
+                String operator = match.group(2);
+                String value = match.group(3);
 
-                if (!skipArgument(key))
-                    manifest.setValue(key, value);
+                if (!skipArgument(key)) {
+                    if (operator.equals("+="))
+                        manifest.appendValue(key, value);
+                    else
+                        manifest.setValue(key, value);
+                }
             }
         }
     }
