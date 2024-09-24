@@ -3,15 +3,12 @@ package edu.utexas.tacc.tapis.jobs.monitors;
 import static edu.utexas.tacc.tapis.jobs.model.enumerations.JobConditionCode.SCHEDULER_TERMINATED;
 import static edu.utexas.tacc.tapis.shared.utils.TapisUtils.conditionalQuote;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.monitors.parsers.JobRemoteStatus;
@@ -30,13 +27,28 @@ import edu.utexas.tacc.tapis.shared.ssh.apache.system.TapisRunCommand;
 public final class KubernetesMonitor
   extends AbstractJobMonitor
 {
+    // data fields
+
+
     private static final Logger _log = LoggerFactory.getLogger(KubernetesMonitor.class);
 
 
+    // constructors
+
+
+    /**
+     *
+     * @param jobCtx
+     * @param policy
+     */
     protected KubernetesMonitor(JobExecutionContext jobCtx, MonitorPolicy policy)
     {
         super(jobCtx, policy);
     }
+
+
+    // publc methods
+
 
     @Override
     public String getExitCode() {
@@ -53,41 +65,16 @@ public final class KubernetesMonitor
             throw new JobException(msg);
         }
 
-        TapisRunCommand runCommand = _jobCtx.getExecSystemTapisSSH().getRunCommand();
-        String command = getBaseCommand() + " status";
-
-        if (_log.isDebugEnabled())
-            _log.debug(MsgUtils.getMsg("JOBS_MONITOR_COMMAND", _job.getUuid(),
-                                       _jobCtx.getExecutionSystem().getHost(),
-                                       _jobCtx.getExecutionSystem().getPort(),
-                                       command));
-
-        // Execute the query with retry capability.
-        JobMonitorCmdResponse response;
+        String status;
 
         try {
-        	response = runJobMonitorCmd(runCommand, command);
+            status = getStatus();
         }
         catch (TapisException err) {
             // Exception already logged
             return JobRemoteStatus.NULL;
         }
 
-        // We should have gotten something.
-        if (StringUtils.isBlank(response.result))
-            return JobRemoteStatus.EMPTY;
-
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode root;
-
-        try {
-            root = mapper.readTree(response.result);
-        }
-        catch (JsonProcessingException err) {
-            throw new JobException(err.getMessage());
-        }
-
-        String status = root.at("/status").asText();
         JobRemoteStatus jobStatus;
 
         if (status.equals("Pending"))
@@ -97,21 +84,19 @@ public final class KubernetesMonitor
         else if (status.equals("Complete"))
             jobStatus = JobRemoteStatus.DONE;
         else if (status.equals("Failed")) {
-            List<JsonNode> codes = root.path("pods").findValues("exitCode");
+            List<Integer> codes = getPodExitCodes();
             int exitCode = 0;
 
-            for (JsonNode code : codes) {
-                int value = code.asInt();
-
-                if (value != 0) {
-                    exitCode = value;
+            for (Integer code : codes) {
+                if (code != 0) {
+                    exitCode = code;
 
                     break;
                 }
             }
 
             String msg = MsgUtils.getMsg("JOBS_MONITOR_FAILURE_RESPONSE",
-                                         getClass().getSimpleName(), _job.getUuid(),
+                                         getClass().getSimpleName(), _job.getRemoteJobId(),
                                          status, exitCode, _job.getUuid());
 
             _log.warn(msg);
@@ -119,7 +104,7 @@ public final class KubernetesMonitor
             // Update the finalMessage field in the jobCtx to reflect this status.
             _job.setCondition(SCHEDULER_TERMINATED);
 
-            String finalMessage = MsgUtils.getMsg("JOBS_USER_APP_FAILURE", _job.getUuid(),
+            String finalMessage = MsgUtils.getMsg("JOBS_USER_APP_FAILURE", _job.getRemoteJobId(),
                                                   status, exitCode);
 
             _job.getJobCtx().setFinalMessage(finalMessage);
@@ -128,7 +113,7 @@ public final class KubernetesMonitor
         }
         else {
             String msg = MsgUtils.getMsg("JOBS_MONITOR_UNKNOWN_RESPONSE",
-                                         getClass().getSimpleName(), _job.getUuid(),
+                                         getClass().getSimpleName(), _job.getRemoteJobId(),
                                          status, _job.getUuid());
 
             _log.warn(msg);
@@ -139,26 +124,166 @@ public final class KubernetesMonitor
         return jobStatus;
     }
 
+
+    // protected methods
+
+
     @Override
     protected void cleanUpRemoteJob()
     {
         try {
-            TapisRunCommand runCommand = _jobCtx.getExecSystemTapisSSH().getRunCommand();
-            String command = getBaseCommand() + " cleanup";
+            StringBuilder cmdBuilder = new StringBuilder();
 
-            runJobMonitorCmd(runCommand, command);
+            cmdBuilder.append(" delete job ");
+            cmdBuilder.append(_job.getRemoteJobId());
+
+            runWrapperCommand(cmdBuilder.toString());
         }
         catch (TapisException err) {
             // Exception already logged
         }
     }
 
-    private String getBaseCommand() throws TapisException
+
+    // private methods
+
+
+    /**
+     *
+     * @param command
+     * @return
+     * @throws TapisException
+     */
+    private JobMonitorCmdResponse runWrapperCommand(String command) throws TapisException
     {
-        // Create the command that changes the directory to the execution
-        // directory and runs the wrapper script.  The directory is expressed
-        // as an absolute path on the system.
         String execDir = JobExecutionUtils.getExecDir(_jobCtx, _job);
-        return String.format("cd %s;./%s", conditionalQuote(execDir), JobExecutionUtils.JOB_WRAPPER_SCRIPT);
+        StringBuilder cmdBuilder = new StringBuilder();
+
+        cmdBuilder.append("cd ");
+        cmdBuilder.append(conditionalQuote(execDir));
+        cmdBuilder.append(";./");
+        cmdBuilder.append(JobExecutionUtils.JOB_WRAPPER_SCRIPT);
+        cmdBuilder.append(" ");
+        cmdBuilder.append(command);
+
+        String cmd = cmdBuilder.toString();
+
+        if (_log.isDebugEnabled())
+            _log.debug(MsgUtils.getMsg("JOBS_MONITOR_COMMAND", _job.getUuid(),
+                                       _jobCtx.getExecutionSystem().getHost(),
+                                       _jobCtx.getExecutionSystem().getPort(),
+                                       cmd));
+
+        TapisRunCommand runCommand = _jobCtx.getExecSystemTapisSSH().getRunCommand();
+
+        return runJobMonitorCmd(runCommand, cmd);
+    }
+
+    /**
+     *
+     * @return
+     * @throws TapisException
+     */
+    private String[] getPodNames() throws TapisException
+    {
+        StringBuilder cmdBuilder = new StringBuilder();
+
+        cmdBuilder.append(" get pods --selector=job-name=");
+        cmdBuilder.append(_job.getRemoteJobId());
+        cmdBuilder.append(" --output=jsonpath='{.items[*].metadata.name}'");
+
+        JobMonitorCmdResponse response = runWrapperCommand(cmdBuilder.toString());
+
+        if (response.rc != 0 || StringUtils.isBlank(response.result))
+            return null;
+
+        return response.result.split("\\s");
+    }
+
+    /**
+     *
+     * @return
+     * @throws TapisException
+     */
+    private String getStatus() throws TapisException
+    {
+        StringBuilder cmdBuilder = new StringBuilder();
+
+        cmdBuilder.append(" get job ");
+        cmdBuilder.append(_job.getRemoteJobId());
+        cmdBuilder.append(" --output=jsonpath='{.status.conditions[?(@.status==\"True\")].type}'");
+
+        JobMonitorCmdResponse response = runWrapperCommand(cmdBuilder.toString());
+        String status = "";
+
+        if (response.rc == 0 && !StringUtils.isBlank(response.result))
+            status = response.result;
+        else {
+            String[] podNames = getPodNames();
+
+            for (String pod : podNames) {
+                cmdBuilder = new StringBuilder();
+
+                cmdBuilder.append(" get pod ");
+                cmdBuilder.append(pod);
+                cmdBuilder.append(" --output=jsonpath='{.status.phase}'");
+
+                response = runWrapperCommand(cmdBuilder.toString());
+
+                if (response.rc == 0 && !StringUtils.isBlank(response.result)) {
+                    status = response.result;
+
+                    if (!status.equals("Pending")) {
+                        status = "Running";
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        return status;
+    }
+
+    /**
+     *
+     * @return
+     * @throws TapisException
+     */
+    private List<Integer> getPodExitCodes() throws TapisException
+    {
+        List<Integer> result = new ArrayList<Integer>();
+        String[] podNames = getPodNames();
+
+        for (String pod : podNames) {
+            StringBuilder cmdBuilder = new StringBuilder();
+
+            cmdBuilder.append(" get pod ");
+            cmdBuilder.append(pod);
+            cmdBuilder.append(" -o jsonpath='{.status.containerStatuses[*].name}'");
+
+            JobMonitorCmdResponse response = runWrapperCommand(cmdBuilder.toString());
+
+            if (response.rc == 0 && !StringUtils.isBlank(response.result)) {
+                String[] containerNames = response.result.split("\\s");
+
+                for (String container : containerNames) {
+                    cmdBuilder = new StringBuilder();
+
+                    cmdBuilder.append(" get pod ");
+                    cmdBuilder.append(pod);
+                    cmdBuilder.append(" -o jsonpath='{.status.containerStatuses[?(@.name==\"");
+                    cmdBuilder.append(container);
+                    cmdBuilder.append("\")].state.terminated.exitCode}'");
+
+                    response = runWrapperCommand(cmdBuilder.toString());
+
+                    if (response.rc == 0 && !StringUtils.isBlank(response.result))
+                        result.add(Integer.valueOf(response.result));
+                }
+            }
+        }
+
+        return result;
     }
 }

@@ -1,11 +1,5 @@
 package edu.utexas.tacc.tapis.jobs.stagers.docker;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-
-import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.schedulers.KubernetesScheduler;
 import edu.utexas.tacc.tapis.jobs.stagers.AbstractJobExecStager;
 import edu.utexas.tacc.tapis.jobs.stagers.JobExecCmd;
@@ -23,12 +17,6 @@ import edu.utexas.tacc.tapis.systems.client.gen.model.SchedulerTypeEnum;
 public class DockerKubernetesStager
   extends AbstractJobExecStager
 {
-    // data fields
-
-
-    private static final String _resourceFile = "edu/utexas/tacc/tapis/jobs/kubernetes/wrapper.sh";
-
-
     // constructors
 
 
@@ -75,28 +63,7 @@ public class DockerKubernetesStager
 
         // Add zero or more module load commands.
         _cmdBuilder.append(_jobScheduler.getModuleLoadCalls());
-
-        try (InputStream inStream = new BufferedInputStream(DockerKubernetesStager.class.getClassLoader().getResourceAsStream(_resourceFile))) {
-            int bytesRead;
-            byte[] readBuffer = new byte[8192];
-            ByteArrayOutputStream result = new ByteArrayOutputStream();
-
-            while ((bytesRead = inStream.read(readBuffer, 0, readBuffer.length)) > -1)
-                result.write(readBuffer, 0, bytesRead);
-
-            String body = result.toString();
-            String kubeArgs = ((KubernetesScheduler) _jobScheduler).getArgList();
-
-            kubeArgs += "-f " + JobExecutionUtils.JOB_KUBE_MANIFEST_FILE;
-
-            body = body.replace("${KUBEARGS}", kubeArgs);
-            body = body.replace("${JOBID}", _job.getUuid());
-
-            _cmdBuilder.append(body);
-        }
-        catch (IOException err) {
-            throw new JobException(err.getMessage());
-        }
+        _cmdBuilder.append("kubectl \"$@\"");
 
         return _cmdBuilder.toString();
     }
