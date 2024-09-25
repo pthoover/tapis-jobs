@@ -195,7 +195,7 @@ public final class KubernetesMonitor
         JobMonitorCmdResponse response = runWrapperCommand(cmdBuilder.toString());
 
         if (response.rc != 0 || StringUtils.isBlank(response.result))
-            return null;
+            return new String[0];
 
         return response.result.split("\\s");
     }
