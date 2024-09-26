@@ -2,12 +2,9 @@ package edu.utexas.tacc.tapis.jobs.schedulers;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.model.Job;
@@ -96,27 +93,15 @@ public class KubernetesOptions
 
 
     private static final int MAX_LABEL_LENGTH = 53;
-    private static final Logger _log = LoggerFactory.getLogger(KubernetesOptions.class);
-    private static final List<Pattern> _skipList = new ArrayList<Pattern>();
     private String _containerName;
     private String _cpu;
     private List<Pair<String,String>> _env;
     private String _image;
     private String _jobName;
-    private List<String> _kubeArgs;
+    private List<String> _manifestValues;
     private String _memory;
     private List<Mount> _mounts;
     private String _tapisProfile;
-
-
-    static {
-        try {
-            _skipList.add(Pattern.compile("-f|--filename"));
-        }
-        catch (Exception err) {
-            _log.error(err.getMessage(), err);
-        }
-    }
 
 
     // constructors
@@ -232,21 +217,21 @@ public class KubernetesOptions
      *
      * @return
      */
-    public List<String> getKubeArgs()
+    public List<String> getManifestValues()
     {
-        if (_kubeArgs == null)
-        _kubeArgs = new ArrayList<String>();
+        if (_manifestValues == null)
+            _manifestValues = new ArrayList<String>();
 
-        return _kubeArgs;
+        return _manifestValues;
     }
 
     /**
      *
      * @param args
      */
-    public void setKubeArgs(List<String> args)
+    public void setManifestValues(List<String> values)
     {
-        _kubeArgs = args;
+        _manifestValues = values;
     }
 
     /**
@@ -309,8 +294,10 @@ public class KubernetesOptions
     // private methods
 
 
-    /*
+    /**
      *
+     * @param jobCtx
+     * @throws TapisException
      */
     private void setOptions(JobExecutionContext jobCtx) throws TapisException
     {
@@ -345,8 +332,10 @@ public class KubernetesOptions
             setJobName(JobExecutionUtils.JOB_WRAPPER_SCRIPT);
     }
 
-    /*
+    /**
      *
+     * @param job
+     * @throws JobException
      */
     private void setSchedulerOptions(Job job) throws JobException
     {
@@ -378,48 +367,31 @@ public class KubernetesOptions
             }
 
             // Save the parsed value.
-            if (!assignCmd(option, value) && !skipOption(option))
-                getKubeArgs().add(opt.getArg());
+            if (!assignCmd(option, value))
+                getManifestValues().add(opt.getArg());
         }
     }
 
-    /*
+    /**
      *
+     * @param option
+     * @param value
+     * @return
      */
     private boolean assignCmd(String option, String value)
     {
-        switch (option) {
-            case "--job-name":
-            case "-J":
-                setJobName(value);
-                break;
+        if (option.equals("--tapis-profile")) {
+            setTapisProfile(value);
 
-            case "--tapis-profile":
-                setTapisProfile(value);
-                break;
-
-            default:
-                return false;
-        }
-
-        return true;
-    }
-
-    /*
-     *
-     */
-    private boolean skipOption(String name)
-    {
-        for (Pattern pattern : _skipList) {
-            if (pattern.matcher(name).matches())
-                return true;
+            return true;
         }
 
         return false;
     }
 
-    /*
+    /**
      *
+     * @param job
      */
     private void setEnvVariables(Job job)
     {
@@ -433,8 +405,10 @@ public class KubernetesOptions
         for (var kv : envList) cmdEnv.add(Pair.of(kv.getKey(), kv.getValue()));
     }
 
-    /*
+    /**
      *
+     * @param jobCtx
+     * @throws TapisException
      */
     private void setStandardBindMounts(JobExecutionContext jobCtx) throws TapisException
     {
@@ -448,8 +422,11 @@ public class KubernetesOptions
         mounts.add(new Mount("exec-system-exec", fm.makeAbsExecSysExecPath(), Job.DEFAULT_EXEC_SYSTEM_EXEC_MOUNTPOINT, false));
     }
 
-    /*
+    /**
      *
+     * @param jobCtx
+     * @param job
+     * @throws TapisException
      */
     private void setTapisLocalBindMounts(JobExecutionContext jobCtx, Job job) throws TapisException
     {

@@ -15,9 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
-import edu.utexas.tacc.tapis.jobs.model.Job;
-import edu.utexas.tacc.tapis.jobs.model.submit.JobArgSpec;
-import edu.utexas.tacc.tapis.jobs.model.submit.JobParameterSet;
 import edu.utexas.tacc.tapis.jobs.utils.YamlDocument;
 import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionContext;
 import edu.utexas.tacc.tapis.shared.exceptions.TapisException;
@@ -152,9 +149,7 @@ public class KubernetesScheduler
         manifest.setValue("spec.template.spec.containers.resources.limits.cpu", _kubeOptions.getCpu());
         manifest.setValue("spec.template.spec.containers.resources.limits.memory", _kubeOptions.getMemory() + "M");
 
-        setContainerArgs(manifest);
-
-        setAppArgs(manifest);
+        setManifestValues(manifest);
 
         if (!_kubeOptions.getEnv().isEmpty())
             setEnvVariables(manifest);
@@ -165,30 +160,16 @@ public class KubernetesScheduler
         return manifest.toString();
     }
 
-    /**
-     *
-     * @return
-     */
-    public String getArgList()
-    {
-        StringBuilder argBuilder = new StringBuilder();
-
-        for (String arg : _kubeOptions.getKubeArgs()) {
-            argBuilder.append(arg);
-            argBuilder.append(' ');
-        }
-
-        return argBuilder.toString();
-    }
-
 
     // private methods
 
 
-    /*
+    /**
      *
+     * @param name
+     * @return
      */
-    private boolean skipArgument(String name)
+    private boolean skipValue(String name)
     {
         for (Pattern pattern : _skipList) {
             if (pattern.matcher(name).matches())
@@ -198,24 +179,22 @@ public class KubernetesScheduler
         return false;
     }
 
-    /*
+    /**
      *
+     * @param manifest
+     * @throws JobException
      */
-    private void setContainerArgs(YamlDocument manifest) throws JobException
+    private void setManifestValues(YamlDocument manifest) throws JobException
     {
-        Job job = _jobCtx.getJob();
-        JobParameterSet paramSet = job.getParameterSetModel();
-        List<JobArgSpec> args = paramSet.getContainerArgs();
-
-        for (JobArgSpec arg : args) {
-            Matcher match = _paramPattern.matcher(arg.getArg());
+        for (String pair : _kubeOptions.getManifestValues()) {
+            Matcher match = _paramPattern.matcher(pair);
 
             if (match.matches()) {
                 String key = match.group(1);
                 String operator = match.group(2);
                 String value = match.group(3);
 
-                if (!skipArgument(key)) {
+                if (!skipValue(key)) {
                     if (operator.equals("+="))
                         manifest.appendValue(key, value);
                     else
@@ -225,21 +204,10 @@ public class KubernetesScheduler
         }
     }
 
-    /*
+    /**
      *
-     */
-    private void setAppArgs(YamlDocument manifest) throws JobException
-    {
-        Job job = _jobCtx.getJob();
-        JobParameterSet parmSet = job.getParameterSetModel();
-        List<JobArgSpec> args = parmSet.getAppArgs();
-
-        for (JobArgSpec arg : args)
-            manifest.appendValue("spec.template.spec.containers.args", arg.getArg());
-    }
-
-    /*
-     *
+     * @param manifest
+     * @throws JobException
      */
     private void setEnvVariables(YamlDocument manifest) throws JobException
     {
@@ -255,8 +223,10 @@ public class KubernetesScheduler
         }
     }
 
-    /*
+    /**
      *
+     * @param manifest
+     * @throws JobException
      */
     private void setVolumeMounts(YamlDocument manifest) throws JobException
     {
