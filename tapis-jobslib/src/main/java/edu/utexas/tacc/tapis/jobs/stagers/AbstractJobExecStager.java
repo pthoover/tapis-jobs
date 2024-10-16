@@ -84,7 +84,7 @@ public abstract class AbstractJobExecStager
             _jobScheduler = null;
         } else if (SchedulerTypeEnum.SLURM.equals(schedulerType)) {
             _jobScheduler = new SlurmScheduler(jobCtx);
-        } else if (SchedulerTypeEnum.KUBERNETES.equals(schedulerType)) {
+        } else if (SchedulerTypeEnum.KUBE_VOYAGER.equals(schedulerType)) {
             _jobScheduler = new KubernetesScheduler(jobCtx);
         } else {
             String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", schedulerType,

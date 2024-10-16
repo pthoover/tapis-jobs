@@ -6,7 +6,7 @@ import edu.utexas.tacc.tapis.apps.client.gen.model.TapisApp;
 import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.model.enumerations.JobType;
 import edu.utexas.tacc.tapis.jobs.stagers.docker.DockerStager;
-import edu.utexas.tacc.tapis.jobs.stagers.docker.DockerKubernetesStager;
+import edu.utexas.tacc.tapis.jobs.stagers.kubernetes.KubernetesStager;
 import edu.utexas.tacc.tapis.jobs.stagers.singularity.SingularityRunSlurmStager;
 import edu.utexas.tacc.tapis.jobs.stagers.singularity.SingularityRunStager;
 import edu.utexas.tacc.tapis.jobs.stagers.singularity.SingularityStartStager;
@@ -76,6 +76,7 @@ public final class JobExecStageFactory
             // Get the stager for each supported runtime/scheduler combination.
             stager = switch (runtime) {
                 case DOCKER      -> getBatchDockerStager(jobCtx, scheduler);
+                case KUBERNETES  -> getBatchKubernetesStager(jobCtx, scheduler);
                 case SINGULARITY -> getBatchSingularityStager(jobCtx, scheduler, runtimeOption);
                 case ZIP         -> getBatchZipStager(jobCtx, scheduler);
                 default -> {
@@ -100,13 +101,27 @@ public final class JobExecStageFactory
                                                       SchedulerTypeEnum scheduler) 
      throws TapisException
     {
+        // Not yet supported
+        String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME",
+                                     scheduler + "(DOCKER)",
+                                     "JobExecStageFactory");
+        throw new JobException(msg);
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /* getBatchDockerStager:                                                  */
+    /* ---------------------------------------------------------------------- */
+    private static JobExecStager getBatchKubernetesStager(JobExecutionContext jobCtx,
+                                                      SchedulerTypeEnum scheduler) 
+     throws TapisException
+    {
         // Get the scheduler's docker stager.
         JobExecStager stager = switch (scheduler) {
-            case KUBERNETES -> new DockerKubernetesStager(jobCtx, scheduler);
+            case KUBE_VOYAGER -> new KubernetesStager(jobCtx, scheduler);
             
             default -> {
                 String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 
-                                             scheduler + "(DOCKER)", 
+                                             scheduler + "(KUBERNETES)", 
                                              "JobExecStageFactory");
                 throw new JobException(msg);
             }

@@ -62,6 +62,7 @@ public class JobLauncherFactory
             // Get the laucher for each supported runtime/scheduler combination.
             launcher = switch (runtime) {
                 case DOCKER      -> getBatchDockerLauncher(jobCtx, scheduler);
+                case KUBERNETES  -> getBatchKubernetesLauncher(jobCtx, scheduler);
                 case SINGULARITY -> getBatchSingularityLauncher(jobCtx, scheduler);
                 case ZIP         -> getBatchZipLauncher(jobCtx, scheduler);
                 default -> {
@@ -107,7 +108,7 @@ public class JobLauncherFactory
     {
         // Get the scheduler's docker launcher. 
         JobLauncher launcher = switch (scheduler) {
-            case KUBERNETES -> new KubernetesLauncher(jobCtx);
+            case SLURM -> null;  // at least 1 case is required.
             
             default -> {
                 String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 
@@ -116,6 +117,14 @@ public class JobLauncherFactory
                 throw new JobException(msg);
             }
         };
+        
+        // Make sure we always return a non-null launcher.
+        if (launcher == null) {
+            String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 
+                                          scheduler + "(DOCKER)", 
+                                         "JobLauncherFactory");
+            throw new JobException(msg);
+        }
         
         return launcher;
     }
@@ -157,6 +166,28 @@ public class JobLauncherFactory
                 String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME",
                                              scheduler + "(ZIP)",
                                               "JobLauncherFactory");
+                throw new JobException(msg);
+            }
+        };
+
+        return launcher;
+    }
+    
+    /* ---------------------------------------------------------------------- */
+    /* getBatchDockerLauncher:                                                */
+    /* ---------------------------------------------------------------------- */
+    private static JobLauncher getBatchKubernetesLauncher(JobExecutionContext jobCtx,
+                                                      SchedulerTypeEnum scheduler) 
+     throws TapisException
+    {
+        // Get the scheduler's docker launcher.
+        JobLauncher launcher = switch (scheduler) {
+            case KUBE_VOYAGER -> new KubernetesLauncher(jobCtx);
+
+            default -> {
+                String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME",
+                                             scheduler + "(KUBERNETES)",
+                                             "JobLauncherFactory");
                 throw new JobException(msg);
             }
         };

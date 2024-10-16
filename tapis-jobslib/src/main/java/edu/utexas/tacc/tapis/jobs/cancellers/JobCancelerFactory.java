@@ -61,6 +61,7 @@ public class JobCancelerFactory {
             // Get the canceler for each supported runtime/scheduler combination.
             canceler = switch (runtime) {
                 case DOCKER      -> getBatchDockerCanceler(jobCtx, scheduler);
+                case KUBERNETES  -> getBatchKubernetesCanceler(jobCtx, scheduler);
                 case SINGULARITY -> getBatchSingularityCanceler(jobCtx, scheduler);
                 default -> {
                     String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", runtime, 
@@ -102,7 +103,28 @@ public class JobCancelerFactory {
     {
         // Get the scheduler's docker canceler. 
     	JobCanceler canceler = switch (scheduler) {
-            case KUBERNETES -> new KubernetesCanceler(jobCtx);
+            case SLURM -> null; // not implemented
+            
+            default -> {
+                String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 
+                                             scheduler.name(), "JobCancelerFactory");
+                throw new JobException(msg);
+            }
+        };
+        
+        return canceler;
+    }
+    
+    /* ---------------------------------------------------------------------- */
+    /* getBatchDockerCanceler:                                                 */
+    /* ---------------------------------------------------------------------- */
+    private static JobCanceler getBatchKubernetesCanceler(JobExecutionContext jobCtx,
+                                                      SchedulerTypeEnum scheduler) 
+     throws TapisException
+    {
+        // Get the scheduler's docker canceler. 
+    	JobCanceler canceler = switch (scheduler) {
+            case KUBE_VOYAGER -> new KubernetesCanceler(jobCtx);
             
             default -> {
                 String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 

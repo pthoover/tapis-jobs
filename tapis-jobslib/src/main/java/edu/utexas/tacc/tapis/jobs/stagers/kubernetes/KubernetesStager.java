@@ -1,4 +1,4 @@
-package edu.utexas.tacc.tapis.jobs.stagers.docker;
+package edu.utexas.tacc.tapis.jobs.stagers.kubernetes;
 
 import edu.utexas.tacc.tapis.jobs.schedulers.KubernetesScheduler;
 import edu.utexas.tacc.tapis.jobs.stagers.AbstractJobExecStager;
@@ -14,7 +14,7 @@ import edu.utexas.tacc.tapis.systems.client.gen.model.SchedulerTypeEnum;
  *
  * @author phoover
  */
-public class DockerKubernetesStager
+public class KubernetesStager
   extends AbstractJobExecStager
 {
     // constructors
@@ -26,7 +26,7 @@ public class DockerKubernetesStager
      * @param schedulerType
      * @throws TapisException
      */
-    public DockerKubernetesStager(JobExecutionContext jobCtx, SchedulerTypeEnum schedulerType) throws TapisException
+    public KubernetesStager(JobExecutionContext jobCtx, SchedulerTypeEnum schedulerType) throws TapisException
     {
         super(jobCtx, schedulerType);
     }

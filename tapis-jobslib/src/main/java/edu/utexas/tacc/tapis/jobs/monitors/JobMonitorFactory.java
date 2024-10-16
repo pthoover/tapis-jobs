@@ -86,6 +86,7 @@ public class JobMonitorFactory
             // Get the monitor for each supported runtime/scheduler combination.
             monitor = switch (runtime) {
                 case DOCKER      -> getBatchDockerMonitor(jobCtx, policy, scheduler);
+                case KUBERNETES  -> getBatchKubernetesMonitor(jobCtx, policy, scheduler);
                 case SINGULARITY -> getBatchMonitor(jobCtx, policy, scheduler);
                 case ZIP         -> getBatchMonitor(jobCtx, policy, scheduler);
                 default -> {
@@ -133,7 +134,27 @@ public class JobMonitorFactory
         JobMonitor monitor = switch (scheduler) {
             case SLURM -> null; // not implemented
             
-            case KUBERNETES -> new KubernetesMonitor(jobCtx, policy);
+            default -> {
+                String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 
+                                             scheduler.name(), "JobMonitorFactory");
+                throw new JobException(msg);
+            }
+        };
+        
+        return monitor;
+    }
+    
+    /* ---------------------------------------------------------------------- */
+    /* getBatchKubernetesMonitor:                                                 */
+    /* ---------------------------------------------------------------------- */
+    private static JobMonitor getBatchKubernetesMonitor(JobExecutionContext jobCtx,
+                                                    MonitorPolicy policy,
+                                                    SchedulerTypeEnum scheduler) 
+     throws TapisException
+    {
+        // Get the scheduler's docker monitor. 
+        JobMonitor monitor = switch (scheduler) {
+            case KUBE_VOYAGER -> new KubernetesMonitor(jobCtx, policy);
             
             default -> {
                 String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 
@@ -157,7 +178,7 @@ public class JobMonitorFactory
         JobMonitor monitor = switch (scheduler) {
             case SLURM -> new SlurmMonitor(jobCtx, policy);
             
-            case KUBERNETES -> null; // not implemented
+            case KUBE_VOYAGER -> null; // not implemented
         
             default -> {
                 String msg = MsgUtils.getMsg("TAPIS_UNSUPPORTED_APP_RUNTIME", 
