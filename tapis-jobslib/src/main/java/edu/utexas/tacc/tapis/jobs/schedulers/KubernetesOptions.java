@@ -2,6 +2,7 @@ package edu.utexas.tacc.tapis.jobs.schedulers;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
@@ -12,8 +13,6 @@ import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionContext;
 import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionUtils;
 import edu.utexas.tacc.tapis.shared.exceptions.TapisException;
 import edu.utexas.tacc.tapis.shared.i18n.MsgUtils;
-
-import static edu.utexas.tacc.tapis.jobs.stagers.AbstractJobExecStager._optionPattern;
 
 
 /**
@@ -93,6 +92,7 @@ public class KubernetesOptions
 
 
     private static final int MAX_LABEL_LENGTH = 53;
+    private static final Pattern _optionPattern = Pattern.compile("\\s*([^\\+=\\s]+)\\s*(?:\\+?=)?\\s*(\\S.*)");
     private String _containerName;
     private String _cpu;
     private List<Pair<String,String>> _env;
