@@ -4,6 +4,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import edu.utexas.tacc.tapis.apps.client.gen.model.RuntimeEnum;
 import edu.utexas.tacc.tapis.jobs.cancellers.JobCancelerFactory;
 import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.model.Job;
@@ -480,12 +481,11 @@ abstract class AbstractJobMonitor
      * switches between recovery and active where cancel messages will be 
      * missed.  This is a best effort implementation. 
      */
-    protected void cancelExpiredJob()
+    protected void cancelExpiredJob() throws TapisException
     {
-    	// Currently, we only need to kill off FORK jobs because our BATCH
-    	// scheduler (Slurm) will kill jobs it considers expired.  When other
-    	// BATCH schedulers are introduced, this may need to be updated.
-    	if (_job.getJobType() == JobType.BATCH) return;
+    	// Currently, we only need to kill off FORK and KUBERNETES jobs because
+    	// Slurm will kill jobs it considers expired.
+        if (_job.getJobType() == JobType.BATCH && _jobCtx.getApp().getRuntime() != RuntimeEnum.KUBERNETES) return;
     	var jobUuid = _job.getUuid();
     	
     	// Best effort attempt to kill job.
