@@ -31,6 +31,7 @@ public final class KubernetesMonitor
 
 
     private static final Logger _log = LoggerFactory.getLogger(KubernetesMonitor.class);
+    private String _exitCode;
 
 
     // constructors
@@ -52,7 +53,7 @@ public final class KubernetesMonitor
 
     @Override
     public String getExitCode() {
-        return null;
+        return _exitCode;
     }
 
     @Override
@@ -81,15 +82,17 @@ public final class KubernetesMonitor
             jobStatus = JobRemoteStatus.QUEUED;
         else if (status.equals("Running") || status.equals("Suspended"))
             jobStatus = JobRemoteStatus.ACTIVE;
-        else if (status.equals("Complete"))
+        else if (status.equals("Complete")) {
+            _exitCode = SUCCESS_RC;
             jobStatus = JobRemoteStatus.DONE;
+        }
         else if (status.equals("Failed")) {
             List<Integer> codes = getPodExitCodes();
-            int exitCode = 0;
+            _exitCode = SUCCESS_RC;
 
             for (Integer code : codes) {
                 if (code != 0) {
-                    exitCode = code;
+                    _exitCode = code.toString();
 
                     break;
                 }
@@ -97,7 +100,7 @@ public final class KubernetesMonitor
 
             String msg = MsgUtils.getMsg("JOBS_MONITOR_FAILURE_RESPONSE",
                                          getClass().getSimpleName(), _job.getRemoteJobId(),
-                                         status, exitCode, _job.getUuid());
+                                         status, _exitCode, _job.getUuid());
 
             _log.warn(msg);
 
@@ -105,7 +108,7 @@ public final class KubernetesMonitor
             _job.setCondition(SCHEDULER_TERMINATED);
 
             String finalMessage = MsgUtils.getMsg("JOBS_USER_APP_FAILURE", _job.getRemoteJobId(),
-                                                  status, exitCode);
+                                                  status, _exitCode);
 
             _job.getJobCtx().setFinalMessage(finalMessage);
 
