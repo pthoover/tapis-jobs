@@ -23,6 +23,7 @@ import edu.utexas.tacc.tapis.shared.utils.TapisUtils;
 
 
 /**
+ * Creates a Kubernetes manifest file
  *
  * @author phoover
  */
@@ -32,16 +33,31 @@ public class KubernetesScheduler
     // data fields
 
 
+    // logging
     private static final Logger _log = LoggerFactory.getLogger(KubernetesScheduler.class);
+
+    // Regular expression for parsing path-value pairs for a YAML document. The
+    // expression captures three groups, other than the original unparsed string:
+    //   1 - a path query
+    //   2 - an operator, either an equals or plus-equals sign
+    //   3 - a value assigned or appended to the target of the path query
+    // Leading and trailing whitespace is ignored. An equals sign indicates that a value should be assigned, while a
+    // plus-equals sign indicates that a value should be appended
     private static final Pattern _paramPattern = Pattern.compile("\\s*([^\\+=\\s]+)\\s*(\\+?=)\\s*(\\S.*)");
+
+    // the name of a resource that contains a template for a Kubernetes manifest
     private static final String _resourceFile = "edu/utexas/tacc/tapis/jobs/kubernetes/manifest.yaml";
+
+    // a list of path queries that are to be ignored
     private static final List<Pattern> _skipList = new ArrayList<Pattern>();
+
     private final JobExecutionContext _jobCtx;
     private final KubernetesOptions _kubeOptions;
 
 
     static {
         try {
+            // ensure that a manifest describes a job that is not recurring
             _skipList.add(Pattern.compile("apiVersion"));
             _skipList.add(Pattern.compile("kind"));
             _skipList.add(Pattern.compile("spec\\.schedule"));
@@ -57,7 +73,7 @@ public class KubernetesScheduler
 
     /**
      *
-     * @param jobCtx
+     * @param jobCtx the job execution context
      * @throws TapisException
      */
     public KubernetesScheduler(JobExecutionContext jobCtx) throws TapisException
@@ -76,6 +92,11 @@ public class KubernetesScheduler
         throw new TapisRuntimeException("Unimplemented method");
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * Copied from {@link edu.utexas.tacc.tapis.jobs.schedulers.SlurmScheduler#getModuleLoadCalls()}
+     */
     @Override
     public String getModuleLoadCalls() throws JobException
     {
@@ -126,14 +147,16 @@ public class KubernetesScheduler
     }
 
     /**
+     * Creates the contents of a Kubernetes manifest
      *
-     * @return
+     * @return the contents of the manifest
      * @throws TapisException
      */
     public String getManifest() throws TapisException
     {
         YamlDocument manifest;
 
+        // use a template as the basis for the manifest
         try (InputStream inStream = KubernetesScheduler.class.getClassLoader().getResourceAsStream(_resourceFile)) {
             manifest = new YamlDocument(inStream);
         }
@@ -141,6 +164,7 @@ public class KubernetesScheduler
             throw new JobException(err.getMessage());
         }
 
+        // set values using standard Tapis parameters
         manifest.setValue("metadata.name", _jobCtx.getJob().getUuid());
         manifest.setValue("spec.template.metadata.labels.app", _jobCtx.getApp().getId());
         manifest.setValue("spec.template.spec.serviceAccountName", _jobCtx.getExecutionSystem().getEffectiveUserId());
@@ -149,6 +173,8 @@ public class KubernetesScheduler
         manifest.setValue("spec.template.spec.containers.resources.limits.cpu", _kubeOptions.getCpu());
         manifest.setValue("spec.template.spec.containers.resources.limits.memory", _kubeOptions.getMemory() + "M");
 
+        // set values using path-value pairs supplied by the user as scheduler
+        // options. Setting them here allows the user to override default values
         setManifestValues(manifest);
 
         if (!_kubeOptions.getEnv().isEmpty())
@@ -165,14 +191,15 @@ public class KubernetesScheduler
 
 
     /**
+     * Determines whether or not a path query should be ignored
      *
-     * @param name
-     * @return
+     * @param query a path query
+     * @return true if the query should be ignored, false otherwise
      */
-    private boolean skipValue(String name)
+    private boolean skipValue(String query)
     {
         for (Pattern pattern : _skipList) {
-            if (pattern.matcher(name).matches())
+            if (pattern.matcher(query).matches())
                 return true;
         }
 
@@ -180,8 +207,10 @@ public class KubernetesScheduler
     }
 
     /**
+     * Sets node values in a Kubernetes manifest according to a list of
+     * path-value pairs
      *
-     * @param manifest
+     * @param manifest the manifest document
      * @throws JobException
      */
     private void setManifestValues(YamlDocument manifest) throws JobException
@@ -194,6 +223,9 @@ public class KubernetesScheduler
                 String operator = match.group(2);
                 String value = match.group(3);
 
+                // an equals sign indicates that the value of a selected node
+                // should be set to the given value. A plus-equals sign indicates
+                // that the value should be appended to the current value
                 if (!skipValue(key)) {
                     if (operator.equals("+="))
                         manifest.appendValue(key, value);
@@ -205,8 +237,9 @@ public class KubernetesScheduler
     }
 
     /**
+     * Adds environment variables to containers in a Kubernetes manifest
      *
-     * @param manifest
+     * @param manifest the manifest document
      * @throws JobException
      */
     private void setEnvVariables(YamlDocument manifest) throws JobException
@@ -224,8 +257,9 @@ public class KubernetesScheduler
     }
 
     /**
+     * Adds volume definitions to a Kubernetes manifest
      *
-     * @param manifest
+     * @param manifest the manifest document
      * @throws JobException
      */
     private void setVolumeMounts(YamlDocument manifest) throws JobException

@@ -21,6 +21,7 @@ import edu.utexas.tacc.tapis.shared.ssh.apache.system.TapisRunCommand;
 
 
 /**
+ * Monitors Kubernetes jobs
  *
  * @author phoover
  */
@@ -30,7 +31,9 @@ public final class KubernetesMonitor
     // data fields
 
 
+    // logging
     private static final Logger _log = LoggerFactory.getLogger(KubernetesMonitor.class);
+
     private String _exitCode;
 
 
@@ -39,8 +42,8 @@ public final class KubernetesMonitor
 
     /**
      *
-     * @param jobCtx
-     * @param policy
+     * @param jobCtx the job execution context
+     * @param policy the job monitoring policy
      */
     protected KubernetesMonitor(JobExecutionContext jobCtx, MonitorPolicy policy)
     {
@@ -152,9 +155,11 @@ public final class KubernetesMonitor
 
 
     /**
+     * Executes the wrapper script for the job. The  script in turn calls
+     * kubectl with the given arguments
      *
-     * @param command
-     * @return
+     * @param command arguments for kubectl
+     * @return the response produced by running the script
      * @throws TapisException
      */
     private JobMonitorCmdResponse runWrapperCommand(String command) throws TapisException
@@ -183,8 +188,9 @@ public final class KubernetesMonitor
     }
 
     /**
+     * Gets a list of pod names for the job
      *
-     * @return
+     * @return a list of pod names
      * @throws TapisException
      */
     private String[] getPodNames() throws TapisException
@@ -200,12 +206,14 @@ public final class KubernetesMonitor
         if (response.rc != 0 || StringUtils.isBlank(response.result))
             return new String[0];
 
+        // kubectl returns a whitespace-separated list of names
         return response.result.split("\\s");
     }
 
     /**
+     * Gets the status of the job
      *
-     * @return
+     * @return the status of the job
      * @throws TapisException
      */
     private String getStatus() throws TapisException
@@ -219,6 +227,9 @@ public final class KubernetesMonitor
         JobMonitorCmdResponse response = runWrapperCommand(cmdBuilder.toString());
         String status = "";
 
+        // kubernetes won't assign a status to a job until it's finished, so
+        // the individual pods of a running job need to be checked to determine
+        // current status
         if (response.rc == 0 && !StringUtils.isBlank(response.result))
             status = response.result;
         else {
@@ -236,6 +247,8 @@ public final class KubernetesMonitor
                 if (response.rc == 0 && !StringUtils.isBlank(response.result)) {
                     status = response.result;
 
+                    // any status other than Pending means that the pod has
+                    // done something, so it must be running
                     if (!status.equals("Pending")) {
                         status = "Running";
 
@@ -249,8 +262,9 @@ public final class KubernetesMonitor
     }
 
     /**
+     * Gets the exit codes of the pods created by a job
      *
-     * @return
+     * @return a list of exit codes
      * @throws TapisException
      */
     private List<Integer> getPodExitCodes() throws TapisException

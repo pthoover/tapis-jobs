@@ -12,6 +12,7 @@ import edu.utexas.tacc.tapis.shared.ssh.apache.system.TapisRunCommand;
 
 
 /**
+ * Launches a job using Kubernetes
  *
  * @author phoover
  */
@@ -21,6 +22,7 @@ public class KubernetesLauncher
     // data fields
 
 
+    // logging
     private static final Logger _log = LoggerFactory.getLogger(KubernetesLauncher.class);
 
 
@@ -29,7 +31,7 @@ public class KubernetesLauncher
 
     /**
      *
-     * @param jobCtx
+     * @param jobCtx the job execution context
      * @throws TapisException
      */
     public KubernetesLauncher(JobExecutionContext jobCtx) throws TapisException
@@ -41,6 +43,11 @@ public class KubernetesLauncher
     // publc methods
 
 
+    /**
+     * {@inheritDoc}
+     *
+     * Partially copied from {@link edu.utexas.tacc.tapis.jobs.launchers.SingularityRunSlurmLauncher#launch()}
+     */
     @Override
     public void launch() throws TapisException
     {
@@ -108,8 +115,10 @@ public class KubernetesLauncher
     }
 
     /**
+     * Creates a list of arguments for kubectl that returns the status of an
+     * active job, using the UUID assigned by Tapis as its name
      *
-     * @return
+     * @return arguments for kubectl
      * @throws TapisException
      */
     protected String getStatusCommand() throws TapisException

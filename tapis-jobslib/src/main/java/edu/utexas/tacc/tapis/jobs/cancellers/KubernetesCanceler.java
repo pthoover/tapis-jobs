@@ -14,6 +14,7 @@ import edu.utexas.tacc.tapis.shared.ssh.apache.system.TapisRunCommand;
 
 
 /**
+ * Provides the ability to cancel Kubernetes jobs
  *
  * @author phoover
  */
@@ -24,7 +25,7 @@ public class KubernetesCanceler
 
 
     /**
-     *
+     * Contains the exit code and output returned from a remote command
      */
     private static class CommandResponse
     {
@@ -34,8 +35,8 @@ public class KubernetesCanceler
 
       /**
        *
-       * @param code
-       * @param out
+       * @param code the process exit code
+       * @param out the process output
        */
       public CommandResponse(int code, String out)
       {
@@ -48,6 +49,7 @@ public class KubernetesCanceler
     // data fields
 
 
+    // logging
     private static final Logger _log = LoggerFactory.getLogger(KubernetesCanceler.class);
 
 
@@ -56,7 +58,7 @@ public class KubernetesCanceler
 
     /**
      *
-     * @param jobCtx
+     * @param jobCtx the job execution context
      */
     public KubernetesCanceler(JobExecutionContext jobCtx)
     {
@@ -73,6 +75,8 @@ public class KubernetesCanceler
       try {
         String[] podNames = getPodNames();
 
+        // kubernetes doesn't explicitly provide the means for killing a job. The
+        // closest we can get to that behavior is to delete the individual pods
         for (String pod : podNames)
             deletePod(pod);
 
@@ -92,9 +96,11 @@ public class KubernetesCanceler
 
 
     /**
+     * Executes the wrapper script for the job. The  script in turn calls
+     * kubectl with the given arguments
      *
-     * @param command
-     * @return
+     * @param command arguments for kubectl
+     * @return the response produced by running the script
      * @throws TapisException
      */
     private CommandResponse runWrapperCommand(String command) throws TapisException
@@ -119,8 +125,9 @@ public class KubernetesCanceler
     }
 
     /**
+     * Gets a list of pod names for the job
      *
-     * @return
+     * @return a list of pod names
      * @throws TapisException
      */
     private String[] getPodNames() throws TapisException
@@ -136,12 +143,14 @@ public class KubernetesCanceler
         if (response.exitCode != 0 || StringUtils.isBlank(response.output))
             return new String[0];
 
+        // kubectl returns a whitespace-separated list of names
         return response.output.split("\\s");
     }
 
     /**
+     * Deletes a pod
      *
-     * @param pod
+     * @param pod name of the pod
      * @return
      * @throws TapisException
      */

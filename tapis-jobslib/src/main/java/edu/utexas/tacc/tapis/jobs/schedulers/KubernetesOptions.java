@@ -9,6 +9,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.model.Job;
+import edu.utexas.tacc.tapis.jobs.stagers.docker.DockerRunCmd;
 import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionContext;
 import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionUtils;
 import edu.utexas.tacc.tapis.shared.exceptions.TapisException;
@@ -16,6 +17,7 @@ import edu.utexas.tacc.tapis.shared.i18n.MsgUtils;
 
 
 /**
+ * Contains options used to create a Kubernetes manifest file
  *
  * @author phoover
  */
@@ -25,7 +27,7 @@ public class KubernetesOptions
 
 
     /**
-     *
+     * A class that contains information pertinent to a Kubernetes volume
      */
     public static class Mount
     {
@@ -36,11 +38,12 @@ public class KubernetesOptions
 
 
         /**
+         * constructor
          *
-         * @param name
-         * @param hostPath
-         * @param mountPath
-         * @param readOnly
+         * @param name name of the volume
+         * @param hostPath path of the mount point on the host
+         * @param mountPath location to mount the volume in the container
+         * @param readOnly should the volume be mounted read-only
          */
         public Mount(String name, String hostPath, String mountPath, boolean readOnly)
         {
@@ -52,7 +55,7 @@ public class KubernetesOptions
 
         /**
          *
-         * @return
+         * @return the name of the volume
          */
         public String getName()
         {
@@ -61,7 +64,7 @@ public class KubernetesOptions
 
         /**
          *
-         * @return
+         * @return the path of the mount point on the host
          */
         public String getHostPath()
         {
@@ -70,7 +73,7 @@ public class KubernetesOptions
 
         /**
          *
-         * @return
+         * @return the location to mount the volume in the container
          */
         public String getMountPath()
         {
@@ -79,7 +82,7 @@ public class KubernetesOptions
 
         /**
          *
-         * @return
+         * @return whether or not the volume should be mounted read-only
          */
         public boolean isReadOnly()
         {
@@ -91,8 +94,18 @@ public class KubernetesOptions
     // data fields
 
 
+    // maximum length for a container label
     private static final int MAX_LABEL_LENGTH = 53;
+
+    // Regular expression for parsing scheduler options. The expression captures
+    // two groups, other than the original unparsed string:
+    //   1 - either the name of an option or a path query for a YAML document
+    //   2 - a value assigned to the option or path query
+    // The expression also has a non-capturing group that matches an optional
+    // operator, which may be an equals or plus-equals sign. Leading and
+    // trailing whitespace is ignored
     private static final Pattern _optionPattern = Pattern.compile("\\s*([^\\+=\\s]+)\\s*(?:\\+?=)?\\s*(\\S.*)");
+
     private String _containerName;
     private String _cpu;
     private List<Pair<String,String>> _env;
@@ -108,8 +121,9 @@ public class KubernetesOptions
 
 
     /**
+     * Uses a job execution context to determine various Kubernets options
      *
-     * @param jobCtx
+     * @param jobCtx the job execution context
      * @throws TapisException
      */
     public KubernetesOptions(JobExecutionContext jobCtx) throws TapisException
@@ -123,7 +137,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @return
+     * @return the name of the container
      */
     public String getContainerName()
     {
@@ -132,7 +146,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @param name
+     * @param name the name of the container
      */
     public void setContainerName(String name)
     {
@@ -141,7 +155,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @return
+     * @return the number of CPUs to request
      */
     public String getCpu()
     {
@@ -150,7 +164,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @param cpu
+     * @param cpu the number of CPUs to request
      */
     public void setCpu(String cpu)
     {
@@ -159,7 +173,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @return
+     * @return a list of environment variables to set in the container
      */
     public List<Pair<String,String>> getEnv()
     {
@@ -171,7 +185,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @param env
+     * @param env a list of environment variables to set in the container
      */
     public void setEnv(List<Pair<String,String>> env)
     {
@@ -180,7 +194,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @return
+     * @return the name of the container image
      */
     public String getImage() {
         return _image;
@@ -188,7 +202,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @param image
+     * @param image the name of the container image
      */
     public void setImage(String image)
     {
@@ -197,7 +211,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @return
+     * @return the name to assign to the job
      */
     public String getJobName()
     {
@@ -206,7 +220,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @param name
+     * @param name the name to assign to the job
      */
     public void setJobName(String name)
     {
@@ -215,7 +229,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @return
+     * @return a list of query paths and values
      */
     public List<String> getManifestValues()
     {
@@ -227,7 +241,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @param args
+     * @param values a list of query paths and values
      */
     public void setManifestValues(List<String> values)
     {
@@ -236,7 +250,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @return
+     * @return the amount of memory to request, in megabytes
      */
     public String getMemory() {
         return _memory;
@@ -244,7 +258,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @param memory
+     * @param memory the amount of memory to request, in megabytes
      */
     public void setMemory(String memory)
     {
@@ -253,7 +267,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @return
+     * @return a list of volumes
      */
     public List<Mount> getMounts()
     {
@@ -265,7 +279,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @param mounts
+     * @param mounts a list of volumes
      */
     public void setMounts(List<Mount> mounts)
     {
@@ -274,7 +288,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @return
+     * @return the name of a Tapis profile
      */
     public String getTapisProfile()
     {
@@ -283,7 +297,7 @@ public class KubernetesOptions
 
     /**
      *
-     * @param profile
+     * @param profile the name of a Tapis profile
      */
     public void setTapisProfile(String profile)
     {
@@ -295,8 +309,10 @@ public class KubernetesOptions
 
 
     /**
+     * Uses the job execution context to determine values that will later be
+     * used to create a Kubernetes manifest file
      *
-     * @param jobCtx
+     * @param jobCtx the job execution context
      * @throws TapisException
      */
     private void setOptions(JobExecutionContext jobCtx) throws TapisException
@@ -311,6 +327,7 @@ public class KubernetesOptions
 
         setTapisLocalBindMounts(jobCtx, job);
 
+        // set the name of the container using the name of the Docker image
         String containerImage = jobCtx.getApp().getContainerImage();
         String[] parts = containerImage.split("/");
         String imageName = parts[parts.length - 1].split(":")[0];
@@ -333,8 +350,11 @@ public class KubernetesOptions
     }
 
     /**
+     * Examines the scheduler options provided by the user to create a list of
+     * path-value pairs for use in creating the Kubernetes manifest. Mostly
+     * copied from {@link edu.utexas.tacc.tapis.jobs.schedulers.SlurmOptions#setUserSlurmOptions()}
      *
-     * @param job
+     * @param job the job
      * @throws JobException
      */
     private void setSchedulerOptions(Job job) throws JobException
@@ -373,10 +393,11 @@ public class KubernetesOptions
     }
 
     /**
+     * Examines a scheduler option to set Tapis-specific parameters
      *
-     * @param option
-     * @param value
-     * @return
+     * @param option name of the option
+     * @param value value of the option
+     * @return whether or not the option was recognized as a Tapis option
      */
     private boolean assignCmd(String option, String value)
     {
@@ -390,8 +411,10 @@ public class KubernetesOptions
     }
 
     /**
+     * Determine the list of environment variables for the job. Mostly copied
+     * from {@link edu.utexas.tacc.tapis.jobs.stagers.AbstractJobExecStager#getEnvVariables()}
      *
-     * @param job
+     * @param job the job
      */
     private void setEnvVariables(Job job)
     {
@@ -406,8 +429,9 @@ public class KubernetesOptions
     }
 
     /**
+     * Adds the standard Tapis mount points to the list of volumes
      *
-     * @param jobCtx
+     * @param jobCtx the job execution context
      * @throws TapisException
      */
     private void setStandardBindMounts(JobExecutionContext jobCtx) throws TapisException
@@ -423,9 +447,10 @@ public class KubernetesOptions
     }
 
     /**
+     * Add user-specified mount points. Mostly copied from {@link edu.utexas.tacc.tapis.jobs.stagers.docker.DockerStager#setTapisLocalBindMounts(DockerRunCmd)}
      *
-     * @param jobCtx
-     * @param job
+     * @param jobCtx the job execution context
+     * @param job the job
      * @throws TapisException
      */
     private void setTapisLocalBindMounts(JobExecutionContext jobCtx, Job job) throws TapisException
