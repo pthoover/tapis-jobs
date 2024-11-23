@@ -26,6 +26,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.gson.Gson;
+
 import edu.utexas.tacc.tapis.client.shared.exceptions.TapisClientException;
 import edu.utexas.tacc.tapis.files.client.FilesClient;
 import edu.utexas.tacc.tapis.files.client.gen.model.FileInfo;
@@ -33,6 +35,7 @@ import edu.utexas.tacc.tapis.files.client.gen.model.ReqTransfer;
 import edu.utexas.tacc.tapis.files.client.gen.model.ReqTransferElement;
 import edu.utexas.tacc.tapis.files.client.gen.model.ReqTransferElement.TransferTypeEnum;
 import edu.utexas.tacc.tapis.files.client.gen.model.TransferTask;
+import edu.utexas.tacc.tapis.jobs.config.RuntimeParameters;
 import edu.utexas.tacc.tapis.jobs.dao.JobsDao.TransferValueType;
 import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.filesmonitor.TransferMonitorFactory;
@@ -42,6 +45,7 @@ import edu.utexas.tacc.tapis.jobs.model.enumerations.JobConditionCode;
 import edu.utexas.tacc.tapis.jobs.model.enumerations.JobRemoteOutcome;
 import edu.utexas.tacc.tapis.jobs.model.submit.JobFileInput;
 import edu.utexas.tacc.tapis.jobs.recover.RecoveryUtils;
+import edu.utexas.tacc.tapis.jobs.utils.JobWorkerAudit;
 import edu.utexas.tacc.tapis.shared.TapisConstants;
 import edu.utexas.tacc.tapis.shared.exceptions.TapisException;
 import edu.utexas.tacc.tapis.shared.exceptions.TapisImplException;
@@ -50,7 +54,12 @@ import edu.utexas.tacc.tapis.shared.i18n.MsgUtils;
 import edu.utexas.tacc.tapis.shared.ssh.apache.SSHScpClient;
 import edu.utexas.tacc.tapis.shared.uri.TapisLocalUrl;
 import edu.utexas.tacc.tapis.shared.uri.TapisUrl;
+import edu.utexas.tacc.tapis.shared.utils.AuditUtils;
+import edu.utexas.tacc.tapis.shared.utils.AuditUtils.AuditData;
+import edu.utexas.tacc.tapis.shared.utils.AuditUtils.AUDIT_ACTION;
 import edu.utexas.tacc.tapis.shared.utils.FilesListSubtree;
+import edu.utexas.tacc.tapis.shared.utils.ServiceUtils;
+import edu.utexas.tacc.tapis.shared.utils.TapisGsonUtils;
 import edu.utexas.tacc.tapis.shared.utils.TapisUtils;
 import edu.utexas.tacc.tapis.systems.client.gen.model.SystemTypeEnum;
 
@@ -61,6 +70,13 @@ public final class JobFileManager
     /* ********************************************************************** */
     // Tracing.
     private static final Logger _log = LoggerFactory.getLogger(JobFileManager.class);
+    private static final Logger _audit = LoggerFactory.getLogger("audit");
+    
+	// Reuse the gson object for converting strings to json.
+	private static final Gson _gson = TapisGsonUtils.getGson();
+	
+	// Get the local IP address for auditing.
+	private static final String _localAddr = getLocalAddress();
     
     // Special transfer id value indicating no files to stage.
     private static final String NO_FILE_INPUTS = "no inputs";
@@ -130,7 +146,9 @@ public final class JobFileManager
     /* createDirectories:                                                     */
     /* ---------------------------------------------------------------------- */
     /** Create the directories used for I/O on this job.  The directories may
-     * already exist.
+     * already exist.  This method is not expected to be called from the front-end,
+     * so the JWT information is not available (there's no threadlocal variable).
+     * 
      * 
      * @throws TapisImplException
      * @throws TapisServiceConnectionException
@@ -147,11 +165,28 @@ public final class JobFileManager
         // Create a set to that records the directories already created.
         var createdSet = new HashSet<String>();
         
+        // Initialize an audit object if auditing is enabled. Set the fields
+        // that are the same for all directories.  Only the target* fields will
+        // change for each mkdir call, so as long as they are all assigned on
+        // each mkdir call, we can safely reuse the same auditData object.
+        AuditData auditData = null;
+        if (RuntimeParameters.getInstance().isAuditingEnabled()) {
+        	auditData = JobWorkerAudit.getAuditData(_job, AUDIT_ACTION.ACTION_MKDIR);
+        }
+        
         // ---------------------- Exec System Exec Dir ----------------------
         // Create the directory on the system.
         try {
             filesClient.mkdir(ioTargets.getExecTarget().systemId, 
                               ioTargets.getExecTarget().dir, _shareExecSystemExecDirAppOwner);
+            // Optional auditing.
+            if (auditData != null) {
+            	auditData.targetSystemId = ioTargets.getExecTarget().systemId;
+            	auditData.targetPath = ioTargets.getExecTarget().dir;
+            	auditData.targetHost = _jobCtx.getExecutionSystem().getHost();
+            	auditData.targetSystemType = _jobCtx.getExecutionSystem().getSystemType().name();
+            	_audit.info(AuditUtils.auditMsg(auditData));
+            }
         } catch (TapisClientException e) {
             String msg = MsgUtils.getMsg("FILES_REMOTE_MKDIRS_ERROR", 
                                          ioTargets.getExecTarget().host,
@@ -173,6 +208,14 @@ public final class JobFileManager
             try {
                 filesClient.mkdir(ioTargets.getOutputTarget().systemId, 
                                   _job.getExecSystemOutputDir(), _shareExecSystemOutputDirAppOwner);
+                // Optional auditing.
+                if (auditData != null) {
+                	auditData.targetSystemId = ioTargets.getOutputTarget().systemId;
+                	auditData.targetPath = _job.getExecSystemOutputDir();
+                	auditData.targetHost = _jobCtx.getExecutionSystem().getHost();
+                	auditData.targetSystemType = _jobCtx.getExecutionSystem().getSystemType().name();
+                	_audit.info(AuditUtils.auditMsg(auditData));
+                }
             } catch (TapisClientException e) {
                 String msg = MsgUtils.getMsg("FILES_REMOTE_MKDIRS_ERROR", 
                                              ioTargets.getOutputTarget().host,
@@ -194,6 +237,14 @@ public final class JobFileManager
             try {
                 filesClient.mkdir(ioTargets.getInputTarget().systemId, 
                                   ioTargets.getInputTarget().dir, _shareExecSystemInputDirAppOwner);
+                // Optional auditing.
+                if (auditData != null) {
+                	auditData.targetSystemId = ioTargets.getInputTarget().systemId;
+                	auditData.targetPath = ioTargets.getInputTarget().dir;
+                	auditData.targetHost = _jobCtx.getExecutionSystem().getHost();
+                	auditData.targetSystemType = _jobCtx.getExecutionSystem().getSystemType().name();
+                	_audit.info(AuditUtils.auditMsg(auditData));
+                }
             } catch (TapisClientException e) {
                 String msg = MsgUtils.getMsg("FILES_REMOTE_MKDIRS_ERROR", 
                                              ioTargets.getInputTarget().host,
@@ -217,6 +268,14 @@ public final class JobFileManager
         		try {
         			filesClient.mkdir(ioTargets.getDtnInputTarget().systemId, 
                                  	  ioTargets.getDtnInputTarget().dir, _shareDtnSystemInputDirAppOwner);
+                    // Optional auditing.
+                    if (auditData != null) {
+                    	auditData.targetSystemId = ioTargets.getDtnInputTarget().systemId;
+                    	auditData.targetPath = ioTargets.getDtnInputTarget().dir;
+                    	auditData.targetHost = _jobCtx.getDtnSystem().getHost();
+                    	auditData.targetSystemType = _jobCtx.getDtnSystem().getSystemType().name();
+                    	_audit.info(AuditUtils.auditMsg(auditData));
+                    }
         		} catch (TapisClientException e) {
         			String msg = MsgUtils.getMsg("FILES_REMOTE_MKDIRS_ERROR", 
                                              	 ioTargets.getDtnInputTarget().host,
@@ -241,6 +300,14 @@ public final class JobFileManager
         		try {
         			filesClient.mkdir(ioTargets.getDtnOutputTarget().systemId, 
                                  	  ioTargets.getDtnOutputTarget().dir, _shareDtnSystemOutputDirAppOwner);
+                    // Optional auditing.
+                    if (auditData != null) {
+                    	auditData.targetSystemId = ioTargets.getDtnOutputTarget().systemId;
+                    	auditData.targetPath = ioTargets.getDtnOutputTarget().dir;
+                    	auditData.targetHost = _jobCtx.getDtnSystem().getHost();
+                    	auditData.targetSystemType = _jobCtx.getDtnSystem().getSystemType().name();
+                    	_audit.info(AuditUtils.auditMsg(auditData));
+                    }
         		} catch (TapisClientException e) {
         			String msg = MsgUtils.getMsg("FILES_REMOTE_MKDIRS_ERROR", 
                                              	 ioTargets.getDtnOutputTarget().host,
@@ -267,6 +334,14 @@ public final class JobFileManager
                 var sharedAppCtx = _jobCtx.getJobSharedAppCtx().getSharingArchiveSystemDirAppOwner();
                 filesClient.mkdir(_job.getArchiveSystemId(), 
                                   _job.getArchiveSystemDir(), sharedAppCtx);
+                // Optional auditing.
+                if (auditData != null) {
+                	auditData.targetSystemId = _job.getArchiveSystemId();
+                	auditData.targetPath = _job.getArchiveSystemDir();
+                	auditData.targetHost = _jobCtx.getArchiveSystem().getHost();
+                	auditData.targetSystemType = _jobCtx.getArchiveSystem().getSystemType().name();
+                	_audit.info(AuditUtils.auditMsg(auditData));
+                }
             } catch (TapisClientException e) {
                 String msg = MsgUtils.getMsg("FILES_REMOTE_MKDIRS_ERROR", 
                                              _jobCtx.getArchiveSystem().getHost(),
@@ -457,7 +532,27 @@ public final class JobFileManager
                                          _job.getUuid(),
                                          destPath, e.getMessage());
             throw new JobException(msg, e);
-        } 
+        }
+        
+        // Are we auditing?
+        if (RuntimeParameters.getInstance().isAuditingEnabled()) {
+        	// Initialize audit object.
+        	var auditData = JobWorkerAudit.getAuditData(_job, AUDIT_ACTION.ACTION_SCP_COPY);
+        	auditData.sourceHost = _localAddr;
+            auditData.sourceSystemType = SystemTypeEnum.LINUX.name();	
+        	auditData.targetSystemId = _job.getExecSystemId();
+        	auditData.targetPath = destPath;
+        	auditData.targetHost = _jobCtx.getExecutionSystem().getHost();
+        	auditData.targetSystemType = _jobCtx.getExecutionSystem().getSystemType().name();
+        	
+        	// Add permission info to the audit record.
+        	if (mod != null && !mod.isEmpty()) {
+        		var info = new FilePermsAuditInfo(mod);
+        		auditData.data = _gson.toJson(info);
+        	}
+        	
+        	_audit.info(AuditUtils.auditMsg(auditData));
+        }
     }
 
     /* ---------------------------------------------------------------------- */
@@ -1203,6 +1298,24 @@ public final class JobFileManager
         // Save the transfer id and update the in-memory job with the transfer id.
         _jobCtx.getJobsDao().updateTransferValue(_job, transferId, tid);
         
+        // Are we auditing?
+        if (RuntimeParameters.getInstance().isAuditingEnabled()) {
+        	// Initialize audit object.
+        	var auditData = JobWorkerAudit.getAuditData(_job, AUDIT_ACTION.ACTION_TRANSFER);
+        	
+        	// Stage json content.
+        	var info = new TransferAuditInfo();
+        	info.phase = phase.name();
+        	info.transferIdType = tid.name();
+        	info.transferId = transferId;
+        	info.CorrelationIdType = corrId.name();
+        	info.CorrelationId = tag;
+        	auditData.data = _gson.toJson(info);
+        	
+        	// Write the record.
+        	_audit.info(AuditUtils.auditMsg(auditData));
+        }
+        
         // Return the transfer id.
         return transferId;
     }
@@ -1810,5 +1923,46 @@ public final class JobFileManager
             buf.append(element.getDestSharedCtx());
         }
         return buf.toString();
+    }
+    
+    /* ---------------------------------------------------------------------- */
+    /* getLocalAddress:                                                       */
+    /* ---------------------------------------------------------------------- */
+    /** Best effort to get local ip address.  If unable to acquire address,
+     * return "TapisJobs".  This method never throws an exception.
+     * 
+     * @return an address or string that identifies Jobs
+     */
+    private static String getLocalAddress()
+    {
+    	var localIP = "TapisJobs";
+    	try {localIP = ServiceUtils.getLocalIP();} catch (Exception e) {}
+    	return localIP;
+    }
+    
+    /* ********************************************************************** */
+    /*                        TransferAuditInfo Class                         */
+    /* ********************************************************************** */
+    // Wrapper class used to organize content for the audit data json field.
+    private static final class TransferAuditInfo {
+    	String phase;
+    	String transferIdType;
+    	String transferId;
+    	String CorrelationIdType;
+    	String CorrelationId;
+    }
+    
+    /* ********************************************************************** */
+    /*                        FilePermsAuditInfo Class                        */
+    /* ********************************************************************** */
+    // Generate an object that lists file permission that we'll transform into json.
+    private static final class FilePermsAuditInfo {
+    	String[] permissions;
+    	
+    	// Constructor only called with non-empty permissions.
+    	private FilePermsAuditInfo(List<PosixFilePermission> perms) {
+    		permissions = new String[perms.size()];
+    		for (int i = 0; i < perms.size(); i++) permissions[i] = perms.get(i).name();
+    	}
     }
 }
