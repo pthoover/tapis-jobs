@@ -66,23 +66,24 @@ public class KubernetesLauncher
 
         // Start the container and retrieve the pid.
         int exitStatus = runCmd.execute(launchCmd);
-        String launchResult  = runCmd.getOutAsString();
+        String launchResult = runCmd.getOutAsString();
 
         // Let's see what happened.
         if (exitStatus != 0) {
-            String msg = MsgUtils.getMsg("JOBS_SUBMIT_ERROR", getClass().getSimpleName(),
+            String msg = MsgUtils.getMsg("JOBS_SUBMIT_ERROR2", getClass().getSimpleName(),
                                          _job.getUuid(), launchCmd, launchResult, exitStatus);
             throw new JobException(msg);
         }
 
-        String statusCmd = getStatusCommand();
+        String remoteId = "tapis-" + _job.getUuid();
+        String statusCmd = getStatusCommand(remoteId);
 
         exitStatus = runCmd.execute(statusCmd);
 
         String statusResult = runCmd.getOutAsString();
 
         if (exitStatus != 0 || statusResult == null || statusResult.isEmpty()) {
-            String msg = MsgUtils.getMsg("JOBS_SUBMIT_ERROR", getClass().getSimpleName(),
+            String msg = MsgUtils.getMsg("JOBS_SUBMIT_ERROR2", getClass().getSimpleName(),
                                          _job.getUuid(), launchCmd, launchResult, exitStatus);
             throw new JobException(msg);
         }
@@ -95,7 +96,7 @@ public class KubernetesLauncher
         }
 
         // Save the id.
-        _jobCtx.getJobsDao().setRemoteJobId(_job, _job.getUuid());
+        _jobCtx.getJobsDao().setRemoteJobId(_job, remoteId);
     }
 
 
@@ -116,19 +117,35 @@ public class KubernetesLauncher
 
     /**
      * Creates a list of arguments for kubectl that returns the status of an
-     * active job, using the UUID assigned by Tapis as its name
+     * active job, using the remote job id as its name
      *
+     * @param id the remote job ID
      * @return arguments for kubectl
      * @throws TapisException
      */
-    protected String getStatusCommand() throws TapisException
+    protected String getStatusCommand(String id) throws TapisException
     {
+        String resourceType;
+        String jsonQuery;
+
+        if (_job.isMpi()) {
+            resourceType = "mpijob ";
+            jsonQuery = ".status.conditions[?(@.type==\"Created\")].status";
+        }
+        else {
+            resourceType = "job ";
+            jsonQuery = ".status.active";
+        }
+
         StringBuilder cmdBuilder = new StringBuilder();
 
         cmdBuilder.append(super.getLaunchCommand());
-        cmdBuilder.append(" get job ");
-        cmdBuilder.append(_job.getUuid());
-        cmdBuilder.append(" --output=jsonpath='{.status.active}'");
+        cmdBuilder.append(" get ");
+        cmdBuilder.append(resourceType);
+        cmdBuilder.append(id);
+        cmdBuilder.append(" --output=jsonpath='{");
+        cmdBuilder.append(jsonQuery);
+        cmdBuilder.append("}'");
 
         return cmdBuilder.toString();
     }

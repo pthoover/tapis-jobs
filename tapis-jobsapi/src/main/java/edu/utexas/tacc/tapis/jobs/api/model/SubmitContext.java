@@ -1078,7 +1078,7 @@ public final class SubmitContext
         
         // Validate when MPI is indicated.
         if (_submitReq.getIsMpi()) {
-            if (_submitReq.getMpiCmd() == null) {
+            if (_submitReq.getMpiCmd() == null && _app.getRuntime() != RuntimeEnum.KUBERNETES) {
                 String msg = MsgUtils.getMsg("JOBS_MISSING_MPI_CMD");
                 throw new TapisImplException(msg, Status.BAD_REQUEST.getStatusCode());
             }

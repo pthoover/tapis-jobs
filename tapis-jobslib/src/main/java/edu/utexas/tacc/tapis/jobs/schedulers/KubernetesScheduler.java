@@ -45,8 +45,9 @@ public class KubernetesScheduler
     // plus-equals sign indicates that a value should be appended
     private static final Pattern _paramPattern = Pattern.compile("\\s*([^\\+=\\s]+)\\s*(\\+?=)\\s*(\\S.*)");
 
-    // the name of a resource that contains a template for a Kubernetes manifest
+    // the names of resources that contain templates for Kubernetes manifests
     private static final String _resourceFile = "edu/utexas/tacc/tapis/jobs/kubernetes/manifest.yaml";
+    private static final String _mpiResourceFile = "edu/utexas/tacc/tapis/jobs/kubernetes/mpi_manifest.yaml";
 
     // a list of path queries that are to be ignored
     private static final List<Pattern> _skipList = new ArrayList<Pattern>();
@@ -155,9 +156,15 @@ public class KubernetesScheduler
     public String getManifest() throws TapisException
     {
         YamlDocument manifest;
+        String resourceName;
+
+        if (_jobCtx.getJob().isMpi())
+            resourceName = _mpiResourceFile;
+        else
+            resourceName = _resourceFile;
 
         // use a template as the basis for the manifest
-        try (InputStream inStream = KubernetesScheduler.class.getClassLoader().getResourceAsStream(_resourceFile)) {
+        try (InputStream inStream = KubernetesScheduler.class.getClassLoader().getResourceAsStream(resourceName)) {
             manifest = new YamlDocument(inStream);
         }
         catch (IOException err) {
@@ -165,13 +172,28 @@ public class KubernetesScheduler
         }
 
         // set values using standard Tapis parameters
-        manifest.setValue("metadata.name", _jobCtx.getJob().getUuid());
-        manifest.setValue("spec.template.metadata.labels.app", _jobCtx.getApp().getId());
-        manifest.setValue("spec.template.spec.serviceAccountName", _jobCtx.getExecutionSystem().getEffectiveUserId());
-        manifest.setValue("spec.template.spec.containers.name", _kubeOptions.getContainerName());
-        manifest.setValue("spec.template.spec.containers.image", _kubeOptions.getImage());
-        manifest.setValue("spec.template.spec.containers.resources.limits.cpu", _kubeOptions.getCpu());
-        manifest.setValue("spec.template.spec.containers.resources.limits.memory", _kubeOptions.getMemory() + "M");
+        manifest.setValue("metadata.name", "tapis-" + _jobCtx.getJob().getUuid());
+
+        if (_jobCtx.getJob().isMpi()) {
+            manifest.setValue("spec.mpiReplicaSpecs.Launcher.template.metadata.labels.app", _jobCtx.getApp().getId());
+            manifest.setValue("spec.mpiReplicaSpecs.Worker.template.metadata.labels.app", _jobCtx.getApp().getId());
+            manifest.setValue("spec.mpiReplicaSpecs.Launcher.template.spec.serviceAccountName", _jobCtx.getExecutionSystem().getEffectiveUserId());
+            manifest.setValue("spec.mpiReplicaSpecs.Worker.template.spec.serviceAccountName", _jobCtx.getExecutionSystem().getEffectiveUserId());
+            manifest.setValue("spec.mpiReplicaSpecs.Launcher.template.spec.containers.name", _kubeOptions.getContainerName());
+            manifest.setValue("spec.mpiReplicaSpecs.Worker.template.spec.containers.name", _kubeOptions.getContainerName());
+            manifest.setValue("spec.mpiReplicaSpecs.Launcher.template.spec.containers.image", _kubeOptions.getImage());
+            manifest.setValue("spec.mpiReplicaSpecs.Worker.template.spec.containers.image", _kubeOptions.getImage());
+            manifest.setValue("spec.mpiReplicaSpecs.Worker.template.spec.containers.resources.limits.cpu", _kubeOptions.getCpu());
+            manifest.setValue("spec.mpiReplicaSpecs.Worker.template.spec.containers.resources.limits.memory", _kubeOptions.getMemory() + "M");
+        }
+        else {
+            manifest.setValue("spec.template.metadata.labels.app", _jobCtx.getApp().getId());
+            manifest.setValue("spec.template.spec.serviceAccountName", _jobCtx.getExecutionSystem().getEffectiveUserId());
+            manifest.setValue("spec.template.spec.containers.name", _kubeOptions.getContainerName());
+            manifest.setValue("spec.template.spec.containers.image", _kubeOptions.getImage());
+            manifest.setValue("spec.template.spec.containers.resources.limits.cpu", _kubeOptions.getCpu());
+            manifest.setValue("spec.template.spec.containers.resources.limits.memory", _kubeOptions.getMemory() + "M");
+        }
 
         // set values using path-value pairs supplied by the user as scheduler
         // options. Setting them here allows the user to override default values
@@ -252,7 +274,12 @@ public class KubernetesScheduler
             newVar.put("name", pair.getLeft());
             newVar.put("value", TapisUtils.conditionalQuote(pair.getRight()));
 
-            manifest.appendNode("spec.template.spec.containers.env", newVar);
+            if (_jobCtx.getJob().isMpi()) {
+                manifest.appendNode("spec.mpiReplicaSpecs.Launcher.template.spec.containers.env", newVar);
+                manifest.appendNode("spec.mpiReplicaSpecs.Worker.template.spec.containers.env", newVar);
+            }
+            else
+                manifest.appendNode("spec.template.spec.containers.env", newVar);
         }
     }
 
@@ -281,8 +308,16 @@ public class KubernetesScheduler
             if (mount.isReadOnly())
                 volumeMount.put("readOnly", true);
 
-            manifest.appendNode("spec.template.spec.volumes", volume);
-            manifest.appendNode("spec.template.spec.containers.volumeMounts", volumeMount);
+            if (_jobCtx.getJob().isMpi()) {
+                manifest.appendNode("spec.mpiReplicaSpecs.Launcher.template.spec.volumes", volume);
+                manifest.appendNode("spec.mpiReplicaSpecs.Worker.template.spec.volumes", volume);
+                manifest.appendNode("spec.mpiReplicaSpecs.Launcher.template.spec.containers.volumeMounts", volumeMount);
+                manifest.appendNode("spec.mpiReplicaSpecs.Worker.template.spec.containers.volumeMounts", volumeMount);
+            }
+            else {
+                manifest.appendNode("spec.template.spec.volumes", volume);
+                manifest.appendNode("spec.template.spec.containers.volumeMounts", volumeMount);
+            }
         }
     }
 }

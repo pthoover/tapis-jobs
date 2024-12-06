@@ -10,6 +10,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.google.gson.reflect.TypeToken;
 
+import edu.utexas.tacc.tapis.apps.client.gen.model.RuntimeEnum;
 import edu.utexas.tacc.tapis.jobs.exceptions.JobException;
 import edu.utexas.tacc.tapis.jobs.model.enumerations.JobConditionCode;
 import edu.utexas.tacc.tapis.jobs.model.enumerations.JobRemoteOutcome;
@@ -20,6 +21,7 @@ import edu.utexas.tacc.tapis.jobs.model.submit.JobParameterSet;
 import edu.utexas.tacc.tapis.jobs.model.submit.JobSharedAppCtx.JobSharedAppCtxEnum;
 import edu.utexas.tacc.tapis.jobs.queue.messages.cmd.CmdMsg;
 import edu.utexas.tacc.tapis.jobs.worker.execjob.JobExecutionContext;
+import edu.utexas.tacc.tapis.shared.exceptions.TapisException;
 import edu.utexas.tacc.tapis.shared.i18n.MsgUtils;
 import edu.utexas.tacc.tapis.shared.utils.TapisGsonUtils;
 import edu.utexas.tacc.tapis.shared.utils.TapisUtils;
@@ -320,11 +322,11 @@ public final class Job
      * calculated or user supplied, have to be valid by this time.  All the requirements
      * of front-end processing and database constraints are double-checked here.
      * 
-     * @throws JobException on invalid job content
+     * @throws TapisException on invalid job content
      */
     @Schema(hidden = true)
     public void validateForExecution()
-     throws JobException
+     throws TapisException
     {
         // Check the expected values of all fields that should be assigned
         // after the job has been created in the database but before any 
@@ -475,7 +477,7 @@ public final class Job
         // MPI and command prefix checks.
         if (isMpi) {
             // MPI command must be specified.
-            if (StringUtils.isBlank(mpiCmd)) {
+            if (StringUtils.isBlank(mpiCmd) && _jobCtx.getApp().getRuntime() != RuntimeEnum.KUBERNETES) {
                 String msg = MsgUtils.getMsg("TAPIS_NULL_PARAMETER", "validateForExecution", "mpiCmd");
                 throw new JobException(msg);
             }

@@ -83,9 +83,9 @@ public final class KubernetesMonitor
 
         if (status.equals("Pending"))
             jobStatus = JobRemoteStatus.QUEUED;
-        else if (status.equals("Running") || status.equals("Suspended"))
+        else if (status.equals("Created") || status.equals("Running") || status.equals("Suspended"))
             jobStatus = JobRemoteStatus.ACTIVE;
-        else if (status.equals("Complete")) {
+        else if (status.equals("Complete") || status.equals("Succeeded")) {
             _exitCode = SUCCESS_RC;
             jobStatus = JobRemoteStatus.DONE;
         }
@@ -138,9 +138,17 @@ public final class KubernetesMonitor
     protected void cleanUpRemoteJob()
     {
         try {
+            String resourceType;
+
+            if (_job.isMpi())
+                resourceType = "mpijob ";
+            else
+                resourceType = "job ";
+
             StringBuilder cmdBuilder = new StringBuilder();
 
-            cmdBuilder.append(" delete job ");
+            cmdBuilder.append(" delete ");
+            cmdBuilder.append(resourceType);
             cmdBuilder.append(_job.getRemoteJobId());
 
             runWrapperCommand(cmdBuilder.toString());
@@ -195,9 +203,18 @@ public final class KubernetesMonitor
      */
     private String[] getPodNames() throws TapisException
     {
+        String selector;
+
+        if (_job.isMpi())
+            selector = "training.kubeflow.org/job-name";
+        else
+            selector = "job-name";
+
         StringBuilder cmdBuilder = new StringBuilder();
 
-        cmdBuilder.append(" get pods --selector=job-name=");
+        cmdBuilder.append(" get pods --selector=");
+        cmdBuilder.append(selector);
+        cmdBuilder.append("=");
         cmdBuilder.append(_job.getRemoteJobId());
         cmdBuilder.append(" --output=jsonpath='{.items[*].metadata.name}'");
 
@@ -218,20 +235,36 @@ public final class KubernetesMonitor
      */
     private String getStatus() throws TapisException
     {
+        String resourceType;
+
+        if (_job.isMpi())
+            resourceType = "mpijob ";
+        else
+            resourceType = "job ";
+
         StringBuilder cmdBuilder = new StringBuilder();
 
-        cmdBuilder.append(" get job ");
+        cmdBuilder.append(" get ");
+        cmdBuilder.append(resourceType);
         cmdBuilder.append(_job.getRemoteJobId());
         cmdBuilder.append(" --output=jsonpath='{.status.conditions[?(@.status==\"True\")].type}'");
 
         JobMonitorCmdResponse response = runWrapperCommand(cmdBuilder.toString());
         String status = "";
 
-        // kubernetes won't assign a status to a job until it's finished, so
-        // the individual pods of a running job need to be checked to determine
-        // current status
-        if (response.rc == 0 && !StringUtils.isBlank(response.result))
-            status = response.result;
+        // kubernetes might not assign a status to a job until it's finished, so,
+        // in that case, the individual pods of a running job need to be checked
+        // to determine current status
+        if (response.rc == 0 && !StringUtils.isBlank(response.result)) {
+            // the response is a space-delimited list of statuses, in chronological
+            // order. The most recent one is returned
+            int index = response.result.lastIndexOf(' ');
+
+            if (index >= 0)
+                status = response.result.substring(index + 1);
+            else
+                status = response.result;
+        }
         else {
             String[] podNames = getPodNames();
 

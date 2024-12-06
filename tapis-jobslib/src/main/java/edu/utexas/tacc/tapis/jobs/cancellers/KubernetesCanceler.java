@@ -132,9 +132,18 @@ public class KubernetesCanceler
      */
     private String[] getPodNames() throws TapisException
     {
+        String selector;
+
+        if (_job.isMpi())
+            selector = "training.kubeflow.org/job-name";
+        else
+            selector = "job-name";
+
         StringBuilder cmdBuilder = new StringBuilder();
 
-        cmdBuilder.append(" get pods --selector=job-name=");
+        cmdBuilder.append(" get pods --selector=");
+        cmdBuilder.append(selector);
+        cmdBuilder.append("=");
         cmdBuilder.append(_job.getRemoteJobId());
         cmdBuilder.append(" --output=jsonpath='{.items[*].metadata.name}'");
 

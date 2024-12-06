@@ -1,0 +1,44 @@
+apiVersion: kubeflow.org/v2beta1
+kind: MPIJob
+metadata:
+  name:
+spec:
+  slotsPerWorker:
+  mpiReplicaSpecs:
+    Launcher:
+      restartPolicy: Never
+      replicas: 1
+      template:
+        metadata:
+          labels:
+            app:
+        spec:
+          serviceAccountName:
+          volumes: []
+          containers:
+          - name:
+            image:
+            command: []
+            resources:
+              limits:
+                cpu:
+                memory:
+            volumeMounts: []
+    Worker:
+      restartPolicy: Never
+      replicas:
+      template:
+        metadata:
+          labels:
+            app:
+        spec:
+          serviceAccountName:
+          volumes: []
+          containers:
+          - name:
+            image:
+            resources:
+              limits:
+                cpu:
+                memory:
+            volumeMounts: []
