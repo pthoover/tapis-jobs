@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
 
+import edu.utexas.tacc.tapis.apps.client.gen.model.RuntimeEnum;
 import edu.utexas.tacc.tapis.client.shared.exceptions.TapisClientException;
 import edu.utexas.tacc.tapis.files.client.FilesClient;
 import edu.utexas.tacc.tapis.files.client.gen.model.FileInfo;
@@ -1361,6 +1362,15 @@ public final class JobFileManager
             if (useDtn) launchFileList.add(JobExecutionUtils.JOB_ENV_FILE);
         }
         
+        // add kubernetes manifest as needed
+        if (_jobCtx.getApp().getRuntime() == RuntimeEnum.KUBERNETES) {
+            task = new ReqTransferElement().
+              sourceURI(makePlaceholderUrl(JobExecutionUtils.JOB_KUBE_MANIFEST_FILE)).
+              destinationURI(makePlaceholderUrl(JobExecutionUtils.JOB_KUBE_MANIFEST_FILE));
+            tasks.addElementsItem(task);
+            if (useDtn) launchFileList.add(JobExecutionUtils.JOB_KUBE_MANIFEST_FILE);
+        }
+
         return launchFileList;
     }
 
