@@ -4,6 +4,8 @@ metadata:
   name:
 spec:
   slotsPerWorker:
+  runPolicy:
+    backoffLimit: 0
   mpiReplicaSpecs:
     Launcher:
       restartPolicy: Never
