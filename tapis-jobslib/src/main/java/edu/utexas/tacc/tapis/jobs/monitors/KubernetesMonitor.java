@@ -138,6 +138,8 @@ public final class KubernetesMonitor
     protected void cleanUpRemoteJob()
     {
         try {
+            writePodLogs();
+
             String resourceType;
 
             if (_job.isMpi())
@@ -335,5 +337,27 @@ public final class KubernetesMonitor
         }
 
         return result;
+    }
+
+    /**
+     * Writes log files for pods created by a job
+     *
+     * @throws TapisException
+     */
+    private void writePodLogs() throws TapisException
+    {
+        String[] podNames = getPodNames();
+
+        for (String pod : podNames) {
+            StringBuilder cmdBuilder = new StringBuilder();
+
+            cmdBuilder.append(" logs ");
+            cmdBuilder.append(pod);
+            cmdBuilder.append(" --all-containers=true > output/");
+            cmdBuilder.append(pod);
+            cmdBuilder.append(".log");
+
+            runWrapperCommand(cmdBuilder.toString());
+        }
     }
 }

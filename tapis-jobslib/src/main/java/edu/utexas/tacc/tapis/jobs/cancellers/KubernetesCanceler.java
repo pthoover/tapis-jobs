@@ -73,15 +73,17 @@ public class KubernetesCanceler
     public void cancel() throws TapisException
     {
       try {
-        String[] podNames = getPodNames();
+          String[] podNames = getPodNames();
 
-        // kubernetes doesn't explicitly provide the means for killing a job. The
-        // closest we can get to that behavior is to delete the individual pods
-        for (String pod : podNames)
-            deletePod(pod);
+          // kubernetes doesn't explicitly provide the means for killing a job. The
+          // closest we can get to that behavior is to delete the individual pods
+          for (String pod : podNames) {
+              writePodLog(pod);
+              deletePod(pod);
+          }
 
-        if (_log.isDebugEnabled())
-            _log.debug(MsgUtils.getMsg("JOBS_KUBERNETES_CANCEL", _job.getUuid()));
+          if (_log.isDebugEnabled())
+              _log.debug(MsgUtils.getMsg("JOBS_KUBERNETES_CANCEL", _job.getUuid()));
       }
       catch (TapisException err) {
           String execSysId = _jobCtx.getExecutionSystem().getId();
@@ -154,6 +156,25 @@ public class KubernetesCanceler
 
         // kubectl returns a whitespace-separated list of names
         return response.output.split("\\s");
+    }
+
+    /**
+     * Writes a log file for a pod
+     *
+     * @param pod name of the pod
+     * @throws TapisException
+     */
+    private CommandResponse writePodLog(String pod) throws TapisException
+    {
+        StringBuilder cmdBuilder = new StringBuilder();
+
+        cmdBuilder.append(" logs ");
+        cmdBuilder.append(pod);
+        cmdBuilder.append(" --all-containers=true > output/");
+        cmdBuilder.append(pod);
+        cmdBuilder.append(".log");
+
+        return runWrapperCommand(cmdBuilder.toString());
     }
 
     /**
