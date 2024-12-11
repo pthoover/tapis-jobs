@@ -42,6 +42,11 @@ public class YamlDocTest {
         doc.load("{one: {two: {three.four: 3.4}}}");
 
         Assert.assertEquals(doc.getValue("one.two.three\\.four"), "3.4\n");
+
+        doc.load("{one: 1, two: 2}");
+
+        Assert.assertNull(doc.getValue("foo"));
+        Assert.assertNull(doc.getValue("two.bar"));
     }
 
     @Test
@@ -112,6 +117,16 @@ public class YamlDocTest {
     }
 
     @Test
+    public void replaceNodeTest() throws JobException
+    {
+        YamlDocument doc = new YamlDocument("{one: 1}");
+        Object value = doc.replaceNode("one", 2);
+
+        Assert.assertEquals(value.toString(), "1");
+        Assert.assertEquals(doc.dump(), "one: 2\n");
+    }
+
+    @Test
     public void replaceValueTest() throws JobException
     {
         YamlDocument doc = new YamlDocument("{one: 1}");
@@ -144,14 +159,16 @@ public class YamlDocTest {
     public void appendValueTest() throws JobException
     {
         YamlDocument doc = new YamlDocument("{one: 1}");
+        String value = doc.appendValue("one", "2");
 
-        doc.appendValue("one", "2");
-
+        Assert.assertEquals(value, "- 1\n- 2\n");
         Assert.assertEquals(doc.dump(), "one:\n- 1\n- 2\n");
 
         doc.load("{one: {two: [2, 3]}}");
-        doc.appendValue("one.two", "4");
 
+        value = doc.appendValue("one.two", "4");
+
+        Assert.assertEquals(value, "- 2\n- 3\n- 4\n");
         Assert.assertEquals(doc.dump(), "one:\n  two:\n  - 2\n  - 3\n  - 4\n");
     }
 }
