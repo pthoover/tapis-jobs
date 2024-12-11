@@ -162,6 +162,7 @@ public class KubernetesCanceler
      * Writes a log file for a pod
      *
      * @param pod name of the pod
+     * @return
      * @throws TapisException
      */
     private CommandResponse writePodLog(String pod) throws TapisException

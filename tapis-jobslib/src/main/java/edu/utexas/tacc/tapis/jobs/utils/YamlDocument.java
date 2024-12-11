@@ -84,8 +84,7 @@ public class YamlDocument
          *
          * @param nodes a list of document nodes
          * @param value the value to append
-         * @return a list of boolean values that indicate whether or not the
-         * child nodes changed as a result of the operation
+         * @return the new values of the child nodes
          */
         public abstract List<Object> append(List<Object> nodes, Object value);
 
