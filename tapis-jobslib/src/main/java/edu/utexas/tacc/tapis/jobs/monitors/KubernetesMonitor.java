@@ -353,7 +353,9 @@ public final class KubernetesMonitor
 
             cmdBuilder.append(" logs ");
             cmdBuilder.append(pod);
-            cmdBuilder.append(" --all-containers=true > output/");
+            cmdBuilder.append(" --all-containers=true > ");
+            cmdBuilder.append(_job.getExecSystemOutputDir());
+            cmdBuilder.append('/');
             cmdBuilder.append(pod);
             cmdBuilder.append(".log");
 
