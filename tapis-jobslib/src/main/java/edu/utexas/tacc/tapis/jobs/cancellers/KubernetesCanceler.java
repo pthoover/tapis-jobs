@@ -75,12 +75,16 @@ public class KubernetesCanceler
       try {
           String[] podNames = getPodNames();
 
+          // deleting the launcher pod from an MPI job will cause the worker
+          // pods to be deleted, as well, so avoid that cascading effect by
+          // writing all pod log files beforehand
+          for (String pod : podNames)
+              writePodLog(pod);
+
           // kubernetes doesn't explicitly provide the means for killing a job. The
           // closest we can get to that behavior is to delete the individual pods
-          for (String pod : podNames) {
-              writePodLog(pod);
+          for (String pod : podNames)
               deletePod(pod);
-          }
 
           if (_log.isDebugEnabled())
               _log.debug(MsgUtils.getMsg("JOBS_KUBERNETES_CANCEL", _job.getUuid()));
