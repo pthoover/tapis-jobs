@@ -183,7 +183,9 @@ public class KubernetesScheduler
             manifest.setValue("spec.mpiReplicaSpecs.Worker.template.spec.containers.name", _kubeOptions.getContainerName() + "-worker");
             manifest.setValue("spec.mpiReplicaSpecs.Launcher.template.spec.containers.image", _kubeOptions.getImage());
             manifest.setValue("spec.mpiReplicaSpecs.Worker.template.spec.containers.image", _kubeOptions.getImage());
+            manifest.setValue("spec.mpiReplicaSpecs.Launcher.template.spec.containers.resources.limits.cpu", _kubeOptions.getCpu());
             manifest.setValue("spec.mpiReplicaSpecs.Worker.template.spec.containers.resources.limits.cpu", _kubeOptions.getCpu());
+            manifest.setValue("spec.mpiReplicaSpecs.Launcher.template.spec.containers.resources.limits.memory", _kubeOptions.getMemory() + "M");
             manifest.setValue("spec.mpiReplicaSpecs.Worker.template.spec.containers.resources.limits.memory", _kubeOptions.getMemory() + "M");
         }
         else {
